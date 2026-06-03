@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai-contained-provider-template"  # TODO: rename to ai-contained-provider-<yourprovider>
-version = "0.2.0"
-description = "Hello World adventure game provider for AI-Contained"  # TODO: update
+name = "ai-contained-provider-aws-cli"
+version = "0.0.1"
+description = "AWS CLI provider for AI-Contained"
 requires-python = ">=3.12"
 dependencies = [
     "ai-contained-core-mcp @ https://github.com/AI-Contained/ai-contained-base/archive/refs/tags/v0.3.1.zip#subdirectory=packages/core-mcp",
@@ -29,7 +29,7 @@ markers = [
 ]
 
 [project.entry-points."ai_contained.provider"]
-template = "ai_contained.provider.template:register"  # TODO: rename to <yourprovider> = "ai_contained.provider.<yourprovider>:register"
+aws_cli = "ai_contained.provider.aws_cli:register"
 
 [tool.ruff]
 line-length = 120
