@@ -149,6 +149,7 @@ def build_filters() -> tuple[CommandFilter, CommandFilter]:
         command_strict_rules=[
             CommandRule(ALLOW, ["sts", "get-caller-identity"]),
             *write.command_strict_rules,
+            CommandRule(DENY,  ["ssm", ".*"], reason="ssm is not permitted in read — use aws_write instead"),
             CommandRule(ALLOW, [".*", "check-.*"]),
             CommandRule(ALLOW, [".*", "describe-.*"]),
             CommandRule(ALLOW, [".*", "filter-.*"]),

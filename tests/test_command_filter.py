@@ -256,8 +256,16 @@ def describe_build_filters():
         Case(ALLOW, ["s3api", "list-buckets"]),
         Case(DENY,  ["s3api", "put-object"]),
 
+        # lambda — invoke is a mutating operation; use aws_write instead
+        Case(DENY,  ["lambda", "invoke"]),
+
         # secretsmanager — get-secret-value returns the actual plaintext secret value
         Case(DENY,  ["secretsmanager", "get-secret-value"]),
+
+        # ssm — entire service blocked in read; even read-like subcommands can expose sensitive state
+        Case(DENY,  ["ssm", "get-parameter"]),
+        Case(DENY,  ["ssm", "list-commands"]),
+        Case(DENY,  ["ssm", "send-command"]),
 
         # sts — get-caller-identity is the one allowed sts command in read
         Case(ALLOW, ["sts", "get-caller-identity"]),
@@ -283,8 +291,15 @@ def describe_build_filters():
         # iam
         Case(ALLOW, ["iam", "create-user"]),
 
+        # lambda — invoke is allowed in write
+        Case(ALLOW, ["lambda", "invoke"]),
+
         # s3api
         Case(ALLOW, ["s3api", "put-object"]),
+
+        # ssm — all subcommands allowed in write
+        Case(ALLOW, ["ssm", "get-parameter"]),
+        Case(ALLOW, ["ssm", "send-command"]),
 
         # sts — single token bypasses the 2-pattern ["sts", ".*"] deny rule; no write exemption for get-caller-identity
         Case(DENY,  ["sts"]),
