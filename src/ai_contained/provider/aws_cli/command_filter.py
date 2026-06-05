@@ -90,4 +90,58 @@ class CommandFilter:
 
 def build_filters() -> tuple[CommandFilter, CommandFilter]:
     """Return (read_filter, write_filter) using production rule definitions."""
-    raise NotImplementedError
+    ALLOW = CommandPolicy.ALLOW
+    DENY = CommandPolicy.DENY
+
+    shared = CommandFilter(
+        ALLOW,
+        command_rules=[
+            CommandRule(DENY, ["--.*"], reason="flags are not permitted as commands"),
+        ],
+        flag_rules=[
+            CommandRule(DENY, [".*file[b]?://.*"],        reason="filesystem references are not permitted"),
+            CommandRule(DENY, [".+-file=.*"],              reason="filesystem flags are not permitted"),
+            CommandRule(DENY, ["--endpoint-url(?:=.*)?"],  reason="--endpoint-url is not permitted"),
+        ],
+    )
+    help_strict_rules = [
+        CommandRule(ALLOW, [".*", "help"]),
+        CommandRule(ALLOW, [".*", ".*", "help"]),
+    ]
+    write = CommandFilter(
+        ALLOW,
+        command_rules=shared.command_rules,
+        command_strict_rules=[
+            CommandRule(DENY, ["ecr",          "get-login-password"],      reason="returns Docker credentials"),
+            CommandRule(DENY, ["eks",          "get-token"],               reason="returns auth token"),
+            CommandRule(DENY, ["codeartifact", "get-authorization-token"], reason="returns auth token"),
+            CommandRule(DENY, ["configure", ".*"], reason="configure is not permitted"),
+            CommandRule(DENY, ["sts",        ".*"], reason="sts is not permitted except get-caller-identity"),
+            *help_strict_rules,
+        ],
+        flag_rules=shared.flag_rules,
+    )
+    read = CommandFilter(
+        DENY,
+        default_reason="command is not recognized as read-only — use aws_write instead",
+        command_rules=shared.command_rules,
+        command_strict_rules=[
+            CommandRule(ALLOW, ["sts", "get-caller-identity"]),
+            *write.command_strict_rules,
+            CommandRule(ALLOW, [".*", "list-.*"]),
+            CommandRule(ALLOW, [".*", "describe-.*"]),
+            CommandRule(ALLOW, [".*", "get-.*"]),
+            CommandRule(ALLOW, [".*", "show-.*"]),
+            CommandRule(ALLOW, [".*", "head-.*"]),
+            CommandRule(ALLOW, [".*", "lookup-.*"]),
+            CommandRule(ALLOW, [".*", "scan-.*"]),
+            CommandRule(ALLOW, [".*", "search-.*"]),
+            CommandRule(ALLOW, [".*", "check-.*"]),
+            CommandRule(ALLOW, [".*", "filter-.*"]),
+            CommandRule(ALLOW, [".*", "wait", ".*"]),
+            CommandRule(ALLOW, ["dynamodb", "query"]),
+            CommandRule(ALLOW, ["dynamodb", "scan"]),
+        ],
+        flag_rules=shared.flag_rules,
+    )
+    return read, write
