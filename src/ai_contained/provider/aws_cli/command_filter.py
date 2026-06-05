@@ -48,19 +48,44 @@ class CommandFilter:
         command_strict_rules: list[CommandRule] = [],
         flag_rules: list[CommandRule] = [],
     ) -> None:
+        for rule in command_rules:
+            if rule.policy == CommandPolicy.ALLOW:
+                raise NotImplementedError("command_rules do not support ALLOW policy — token scanning is deny-only")
+        for rule in flag_rules:
+            if rule.policy == CommandPolicy.ALLOW:
+                raise NotImplementedError("flag_rules do not support ALLOW policy — flag scanning is deny-only")
         self.default = default
         self.default_reason = default_reason
         self.command_rules = command_rules
         self.command_strict_rules = command_strict_rules
         self.flag_rules = flag_rules
 
+    def _rejection_scan(self, tokens: list[str], rules: list[CommandRule]) -> str | None:
+        """Scan each token against each deny rule, return first rejection or None."""
+        for token in tokens:
+            for rule in rules:
+                if rule.check([token]) == CommandPolicy.DENY:
+                    return f"'{token}': {rule.reason}"
+        return None
+
     def rejection_command(self, command: list[str]) -> str | None:
         """Return rejection reason if command is not permitted, else None."""
-        raise NotImplementedError
+        if rejection := self._rejection_scan(command, self.command_rules):
+            return rejection
+        label = " ".join(command)
+        for rule in self.command_strict_rules:
+            policy = rule.check(command)
+            if policy == CommandPolicy.DENY:
+                return f"'{label}': {rule.reason}"
+            if policy == CommandPolicy.ALLOW:
+                return None
+        if self.default == CommandPolicy.ALLOW:
+            return None
+        return f"'{label}': {self.default_reason}"
 
     def rejection_flags(self, flags: list[str]) -> str | None:
         """Return rejection reason if any flag is not permitted, else None."""
-        raise NotImplementedError
+        return self._rejection_scan(flags, self.flag_rules)
 
 
 def build_filters() -> tuple[CommandFilter, CommandFilter]:

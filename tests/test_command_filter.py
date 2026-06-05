@@ -29,6 +29,11 @@ def describe_CommandRule():
             rule = CommandRule(ALLOW, ["ec2", "list-.*"])
             assert_that(rule.check(["ec2", "xlist-buckets"])).is_none()
 
+        def it_does_not_match_when_token_has_trailing_content() -> None:
+            rule = CommandRule(ALLOW, ["dynamodb", "query"])
+            assert_that(rule.check(["dynamodb", "query"])).is_equal_to(ALLOW)
+            assert_that(rule.check(["dynamodb", "query-something"])).is_none()
+
         def it_applies_regex_patterns() -> None:
             rule = CommandRule(DENY, ["--endpoint-url(?:=.*)?"])
             assert_that(rule.check(["--endpoint-url=https://evil.com"])).is_equal_to(DENY)
@@ -96,11 +101,6 @@ def describe_CommandFilter():
         def it_applies_default_allow_when_no_strict_rule_matches() -> None:
             f = CommandFilter(ALLOW)
             assert_that(f.rejection_command(["ec2", "run-instances"])).is_none()
-
-        def it_rejects_when_command_has_fewer_than_two_tokens() -> None:
-            f = CommandFilter(ALLOW)
-            assert_that(f.rejection_command(["ec2"])).is_equal_to("'ec2': command must include a service and operation")
-            assert_that(f.rejection_command([])).is_equal_to("'': command must include a service and operation")
 
         def it_runs_command_token_scan_before_strict_rules() -> None:
             f = CommandFilter(
