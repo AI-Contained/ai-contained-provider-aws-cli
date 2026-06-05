@@ -182,25 +182,17 @@ def describe_build_filters():
         Case(DENY,  ["configure", "list"]),
         Case(DENY,  ["ec2",       "describe-instances"], flags=["--endpoint-url=https://evil.com"]),
         Case(DENY,  ["ec2",       "describe-instances"], flags=["--template-file=foo.yaml"]),
+        Case(DENY,  ["--debug",   "ec2"]),
     ]
 
-    READ_ONLY_CASES = [
+    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + [
         Case(ALLOW, ["ec2",      "describe-instances"]),
         Case(ALLOW, ["s3api",    "list-buckets"]),
         Case(ALLOW, ["ec2",      "wait", "instance-running"]),
         Case(ALLOW, ["dynamodb", "query"]),
         Case(DENY,  ["ec2",      "run-instances"]),
         Case(DENY,  ["s3api",    "put-object"]),
-        Case(DENY,  ["--debug",  "ec2"]),
-    ]
-
-    WRITE_ONLY_CASES = [
-        Case(ALLOW, ["ec2",   "run-instances"]),
-        Case(ALLOW, ["s3api", "put-object"]),
-        Case(DENY,  ["--debug", "ec2"]),
-    ]
-
-    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + READ_ONLY_CASES])
+    ]])
     def it_applies_read_policy(read: CommandFilter, case: Case) -> None:
         result = read.rejection_command(case.command) or read.rejection_flags(case.flags)
         if case.policy == ALLOW:
@@ -208,7 +200,10 @@ def describe_build_filters():
         else:
             assert_that(result).is_not_none()
 
-    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + WRITE_ONLY_CASES])
+    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + [
+        Case(ALLOW, ["ec2",   "run-instances"]),
+        Case(ALLOW, ["s3api", "put-object"]),
+    ]])
     def it_applies_write_policy(write: CommandFilter, case: Case) -> None:
         result = write.rejection_command(case.command) or write.rejection_flags(case.flags)
         if case.policy == ALLOW:
