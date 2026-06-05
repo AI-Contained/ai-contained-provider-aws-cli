@@ -37,14 +37,22 @@ class CommandRule:
         return self.policy
 
 
-@dataclass
 class CommandFilter:
     """Ordered rule chain for classifying AWS CLI commands and flags."""
 
-    command_rules: list[CommandRule]
-    flag_rules: list[CommandRule]
-    default: CommandPolicy
-    default_reason: str = ""
+    def __init__(
+        self,
+        default: CommandPolicy,
+        default_reason: str = "",
+        command_rules: list[CommandRule] = [],
+        command_strict_rules: list[CommandRule] = [],
+        flag_rules: list[CommandRule] = [],
+    ) -> None:
+        self.default = default
+        self.default_reason = default_reason
+        self.command_rules = command_rules
+        self.command_strict_rules = command_strict_rules
+        self.flag_rules = flag_rules
 
     def rejection_command(self, command: list[str]) -> str | None:
         """Return rejection reason if command is not permitted, else None."""
