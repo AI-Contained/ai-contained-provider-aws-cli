@@ -1,7 +1,7 @@
 import pytest
 from assertpy import assert_that
 
-from ai_contained.provider.aws_cli.command_filter import CommandFilter, CommandPolicy, CommandRule
+from ai_contained.provider.aws_cli.command_filter import CommandFilter, CommandPolicy, CommandRule, build_filters
 
 ALLOW = CommandPolicy.ALLOW
 DENY = CommandPolicy.DENY
@@ -148,3 +148,70 @@ def describe_CommandFilter():
         def it_raises_when_a_command_rule_has_allow_policy() -> None:
             with pytest.raises(NotImplementedError):
                 CommandFilter(ALLOW, command_rules=[CommandRule(ALLOW, [".*"], reason="")])
+
+
+def describe_build_filters():
+    class Case:
+        def __init__(
+            self,
+            policy: CommandPolicy,
+            command: list[str],
+            flags: list[str] = [],
+        ) -> None:
+            self.policy = policy
+            self.command = command
+            self.flags = flags
+
+        @property
+        def id(self) -> str:
+            parts = " ".join(self.command + self.flags)
+            return f"!{parts}" if self.policy == DENY else parts
+
+    @pytest.fixture
+    def read() -> CommandFilter:
+        return build_filters()[0]
+
+    @pytest.fixture
+    def write() -> CommandFilter:
+        return build_filters()[1]
+
+    COMMON_CASES = [
+        Case(DENY,  ["sts",       "assume-role"]),
+        Case(DENY,  ["sts",       "get-session-token"]),
+        Case(ALLOW, ["sts",       "get-caller-identity"]),
+        Case(DENY,  ["configure", "list"]),
+        Case(DENY,  ["ec2",       "describe-instances"], flags=["--endpoint-url=https://evil.com"]),
+        Case(DENY,  ["ec2",       "describe-instances"], flags=["--template-file=foo.yaml"]),
+    ]
+
+    READ_ONLY_CASES = [
+        Case(ALLOW, ["ec2",      "describe-instances"]),
+        Case(ALLOW, ["s3api",    "list-buckets"]),
+        Case(ALLOW, ["ec2",      "wait", "instance-running"]),
+        Case(ALLOW, ["dynamodb", "query"]),
+        Case(DENY,  ["ec2",      "run-instances"]),
+        Case(DENY,  ["s3api",    "put-object"]),
+        Case(DENY,  ["--debug",  "ec2"]),
+    ]
+
+    WRITE_ONLY_CASES = [
+        Case(ALLOW, ["ec2",   "run-instances"]),
+        Case(ALLOW, ["s3api", "put-object"]),
+        Case(DENY,  ["--debug", "ec2"]),
+    ]
+
+    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + READ_ONLY_CASES])
+    def it_applies_read_policy(read: CommandFilter, case: Case) -> None:
+        result = read.rejection_command(case.command) or read.rejection_flags(case.flags)
+        if case.policy == ALLOW:
+            assert_that(result).is_none()
+        else:
+            assert_that(result).is_not_none()
+
+    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + WRITE_ONLY_CASES])
+    def it_applies_write_policy(write: CommandFilter, case: Case) -> None:
+        result = write.rejection_command(case.command) or write.rejection_flags(case.flags)
+        if case.policy == ALLOW:
+            assert_that(result).is_none()
+        else:
+            assert_that(result).is_not_none()
