@@ -46,18 +46,32 @@ def describe_CommandRule():
 
 def describe_CommandFilter():
     def describe_rejection_command():
-        def it_rejects_when_a_deny_rule_fires() -> None:
+        def it_rejects_when_a_command_token_matches_a_deny_rule() -> None:
             f = CommandFilter(
-                command_rules=[CommandRule(DENY, ["configure", ".*"], reason="not permitted")],
+                command_rules=[CommandRule(DENY, ["--.*"], reason="flags not permitted before service")],
+                command_strict_rules=[],
+                flag_rules=[],
+                default=ALLOW,
+            )
+            assert_that(f.rejection_command(["--debug", "describe-instances"])).is_equal_to(
+                "'--debug': flags not permitted before service"
+            )
+            assert_that(f.rejection_command(["ec2", "describe-instances"])).is_none()
+
+        def it_rejects_when_a_strict_deny_rule_fires() -> None:
+            f = CommandFilter(
+                command_rules=[],
+                command_strict_rules=[CommandRule(DENY, ["configure", ".*"], reason="not permitted")],
                 flag_rules=[],
                 default=ALLOW,
             )
             assert_that(f.rejection_command(["configure", "list"])).is_equal_to("'configure list': not permitted")
             assert_that(f.rejection_command(["ec2", "help"])).is_none()
 
-        def it_permits_when_an_allow_rule_fires() -> None:
+        def it_permits_when_a_strict_allow_rule_fires() -> None:
             f = CommandFilter(
-                command_rules=[CommandRule(ALLOW, ["ec2", "describe-.*"])],
+                command_rules=[],
+                command_strict_rules=[CommandRule(ALLOW, ["ec2", "describe-.*"])],
                 flag_rules=[],
                 default=DENY,
                 default_reason="not recognized as read-only",
@@ -67,9 +81,10 @@ def describe_CommandFilter():
                 "'ec2 run-instances': not recognized as read-only"
             )
 
-        def it_stops_at_the_first_matching_rule() -> None:
+        def it_stops_at_the_first_matching_strict_rule() -> None:
             f = CommandFilter(
-                command_rules=[
+                command_rules=[],
+                command_strict_rules=[
                     CommandRule(ALLOW, ["sts", "get-caller-identity"]),
                     CommandRule(DENY, ["sts", ".*"], reason="sts not permitted"),
                 ],
@@ -80,9 +95,10 @@ def describe_CommandFilter():
             assert_that(f.rejection_command(["sts", "get-caller-identity"])).is_none()
             assert_that(f.rejection_command(["sts", "assume-role"])).is_equal_to("'sts assume-role': sts not permitted")
 
-        def it_applies_default_deny_when_no_rule_matches() -> None:
+        def it_applies_default_deny_when_no_strict_rule_matches() -> None:
             f = CommandFilter(
                 command_rules=[],
+                command_strict_rules=[],
                 flag_rules=[],
                 default=DENY,
                 default_reason="unknown command",
@@ -91,19 +107,31 @@ def describe_CommandFilter():
                 "'ec2 describe-instances': unknown command"
             )
 
-        def it_applies_default_allow_when_no_rule_matches() -> None:
-            f = CommandFilter(command_rules=[], flag_rules=[], default=ALLOW)
+        def it_applies_default_allow_when_no_strict_rule_matches() -> None:
+            f = CommandFilter(command_rules=[], command_strict_rules=[], flag_rules=[], default=ALLOW)
             assert_that(f.rejection_command(["ec2", "run-instances"])).is_none()
 
         def it_rejects_when_command_has_fewer_than_two_tokens() -> None:
-            f = CommandFilter(command_rules=[], flag_rules=[], default=ALLOW)
+            f = CommandFilter(command_rules=[], command_strict_rules=[], flag_rules=[], default=ALLOW)
             assert_that(f.rejection_command(["ec2"])).is_equal_to("'ec2': command must include a service and operation")
             assert_that(f.rejection_command([])).is_equal_to("'': command must include a service and operation")
+
+        def it_runs_command_token_scan_before_strict_rules() -> None:
+            f = CommandFilter(
+                command_rules=[CommandRule(DENY, ["--.*"], reason="flags not permitted before service")],
+                command_strict_rules=[CommandRule(ALLOW, ["--debug", ".*"])],
+                flag_rules=[],
+                default=ALLOW,
+            )
+            assert_that(f.rejection_command(["--debug", "describe-instances"])).is_equal_to(
+                "'--debug': flags not permitted before service"
+            )
 
     def describe_rejection_flags():
         def it_rejects_when_a_flag_matches_a_deny_rule() -> None:
             f = CommandFilter(
                 command_rules=[],
+                command_strict_rules=[],
                 flag_rules=[CommandRule(DENY, ["--endpoint-url(?:=.*)?"], reason="not permitted")],
                 default=ALLOW,
             )
@@ -116,6 +144,7 @@ def describe_CommandFilter():
         def it_scans_all_flag_tokens_not_just_the_first() -> None:
             f = CommandFilter(
                 command_rules=[],
+                command_strict_rules=[],
                 flag_rules=[CommandRule(DENY, [".*file[b]?://.*"], reason="filesystem not permitted")],
                 default=ALLOW,
             )
@@ -124,18 +153,29 @@ def describe_CommandFilter():
             )
             assert_that(f.rejection_flags(["--region=us-east-1", "--output=json"])).is_none()
 
-        def it_raises_when_a_flag_rule_has_allow_policy() -> None:
-            with pytest.raises(NotImplementedError):
-                CommandFilter(
-                    command_rules=[],
-                    flag_rules=[CommandRule(ALLOW, [".*"], reason="")],
-                    default=ALLOW,
-                )
-
         def it_permits_an_empty_flag_list() -> None:
             f = CommandFilter(
                 command_rules=[],
+                command_strict_rules=[],
                 flag_rules=[CommandRule(DENY, ["--endpoint-url(?:=.*)?"], reason="not permitted")],
                 default=ALLOW,
             )
             assert_that(f.rejection_flags([])).is_none()
+
+        def it_raises_when_a_flag_rule_has_allow_policy() -> None:
+            with pytest.raises(NotImplementedError):
+                CommandFilter(
+                    command_rules=[],
+                    command_strict_rules=[],
+                    flag_rules=[CommandRule(ALLOW, [".*"], reason="")],
+                    default=ALLOW,
+                )
+
+        def it_raises_when_a_command_rule_has_allow_policy() -> None:
+            with pytest.raises(NotImplementedError):
+                CommandFilter(
+                    command_rules=[CommandRule(ALLOW, [".*"], reason="")],
+                    command_strict_rules=[],
+                    flag_rules=[],
+                    default=ALLOW,
+                )
