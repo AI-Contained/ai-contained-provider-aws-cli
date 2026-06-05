@@ -20,14 +20,6 @@ def describe_CommandRule():
             rule = CommandRule(DENY, [".*", "wait", ".*"])
             assert_that(rule.check(["ec2", "describe-instances", "foo"])).is_none()
 
-        def it_does_not_fire_when_tokens_are_fewer_than_patterns() -> None:
-            rule = CommandRule(ALLOW, ["ec2", "describe-.*"])
-            assert_that(rule.check(["ec2"])).is_none()
-
-        def it_does_not_fire_against_empty_tokens() -> None:
-            rule = CommandRule(ALLOW, ["ec2", "describe-.*"])
-            assert_that(rule.check([])).is_none()
-
         def it_tolerates_extra_tokens_beyond_the_patterns() -> None:
             rule = CommandRule(ALLOW, ["ec2", "describe-.*"])
             assert_that(rule.check(["ec2", "describe-instances", "--region=us-east-1"])).is_equal_to(ALLOW)
@@ -35,10 +27,6 @@ def describe_CommandRule():
         def it_matches_the_full_token_not_a_substring() -> None:
             rule = CommandRule(ALLOW, ["ec2", "list-.*"])
             assert_that(rule.check(["ec2", "xlist-buckets"])).is_none()
-
-        def it_works_with_a_single_pattern() -> None:
-            rule = CommandRule(DENY, ["--endpoint-url(?:=.*)?"])
-            assert_that(rule.check(["--endpoint-url=evil.com"])).is_equal_to(DENY)
 
         def it_applies_regex_patterns() -> None:
             rule = CommandRule(DENY, ["--endpoint-url(?:=.*)?"])
@@ -49,6 +37,7 @@ def describe_CommandRule():
 
         def it_enforces_minimum_token_count() -> None:
             rule = CommandRule(ALLOW, [".*", "wait", ".*"])
+            assert_that(rule.check([])).is_none()
             assert_that(rule.check(["ec2", "wait"])).is_none()
             assert_that(rule.check(["ec2", "wait", "instance-running"])).is_equal_to(ALLOW)
             assert_that(rule.check(["ec2", "wait", "instance-running", "container-id"])).is_equal_to(ALLOW)

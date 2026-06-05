@@ -1,6 +1,7 @@
 """Command filtering for the AWS CLI provider."""
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -18,10 +19,22 @@ class CommandRule:
     policy: CommandPolicy
     patterns: list[str]
     reason: str = ""
+    _compiled: list[re.Pattern[str]] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._compiled = [re.compile(p) for p in self.patterns]
 
     def check(self, tokens: list[str]) -> CommandPolicy | None:
         """Return policy if all patterns match tokens positionally, else None."""
-        raise NotImplementedError
+        if len(tokens) < len(self._compiled):
+            return None
+        # zip() pairs up elements from two iterables by position, stopping at the shortest one:
+        #   zip(["a", "b", "c"], [1, 2, 3]) → [("a", 1), ("b", 2), ("c", 3)]
+        #   zip(["a", "b"],      [1, 2, 3]) → [("a", 1), ("b", 2)]  # stops at shortest
+        for pattern, token in zip(self._compiled, tokens):
+            if not pattern.fullmatch(token):
+                return None
+        return self.policy
 
 
 @dataclass
