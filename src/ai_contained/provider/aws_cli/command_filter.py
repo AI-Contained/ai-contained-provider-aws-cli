@@ -99,28 +99,49 @@ def build_filters() -> tuple[CommandFilter, CommandFilter]:
             CommandRule(DENY, ["--.*"], reason="flags are not permitted as commands"),
         ],
         flag_rules=[
-            CommandRule(DENY, [".*file[b]?://.*"],        reason="filesystem references are not permitted"),
-            CommandRule(DENY, [".+-file=.*"],              reason="filesystem flags are not permitted"),
-            CommandRule(DENY, ["--endpoint-url(?:=.*)?"],  reason="--endpoint-url is not permitted"),
+            CommandRule(DENY, ["(?!--).+"],                  reason="flags must begin with '--'"),
+            CommandRule(DENY, ["--ca-bundle(?:=.*)?"],       reason="CA bundle replacement is not permitted"),
+            CommandRule(DENY, ["--cli-auto-prompt(?:=.*)?"], reason="interactive prompting is not permitted"),
+            CommandRule(DENY, ["--debug(?:=.*)?"],           reason="debug output may leak credentials"),
+            CommandRule(DENY, ["--endpoint-url(?:=.*)?"],    reason="--endpoint-url is not permitted"),
+            CommandRule(DENY, ["--no-sign-request"],         reason="unsigned requests are not permitted"),
+            CommandRule(DENY, ["--no-verify-ssl"],           reason="disabling TLS verification is not permitted"),
+            CommandRule(DENY, ["--profile(?:=.*)?"],         reason="profile switching is not permitted"),
+            CommandRule(DENY, [".*file[b]?://.*"],           reason="filesystem references are not permitted"),
+            CommandRule(DENY, [".+-file=.*"],                reason="filesystem flags are not permitted"),
         ],
     )
+
     help_strict_rules = [
+        CommandRule(ALLOW, ["help"]),
         CommandRule(ALLOW, [".*", "help"]),
         CommandRule(ALLOW, [".*", ".*", "help"]),
     ]
+
     write = CommandFilter(
         ALLOW,
         command_rules=shared.command_rules,
         command_strict_rules=[
-            CommandRule(DENY, ["ecr",          "get-login-password"],      reason="returns Docker credentials"),
-            CommandRule(DENY, ["eks",          "get-token"],               reason="returns auth token"),
-            CommandRule(DENY, ["codeartifact", "get-authorization-token"], reason="returns auth token"),
-            CommandRule(DENY, ["configure", ".*"], reason="configure is not permitted"),
-            CommandRule(DENY, ["sts",        ".*"], reason="sts is not permitted except get-caller-identity"),
+            # credential-leaking commands — blocked regardless of read/write intent
+            CommandRule(DENY, ["cognito-identity", "get-credentials-for-identity"], reason="returns AWS credentials for a Cognito identity"),
+            CommandRule(DENY, ["codeartifact",     "get-authorization-token"],      reason="returns registry auth token"),
+            CommandRule(DENY, ["ecr",              "get-authorization-token"],      reason="returns Docker registry credentials (v1 API)"),
+            CommandRule(DENY, ["ecr",              "get-login-password"],           reason="returns Docker registry credentials"),
+            CommandRule(DENY, ["ecs",              "execute-command"],              reason="executes arbitrary commands in a container"),
+            CommandRule(DENY, ["eks",              "get-token"],                   reason="returns cluster auth token"),
+            CommandRule(DENY, ["secretsmanager",   "get-secret-value"],            reason="returns plaintext secret value"),
+            CommandRule(DENY, ["sso",              "get-role-credentials"],        reason="returns temporary AWS credentials"),
+            CommandRule(DENY, ["ssm",              "start-session"],               reason="opens an interactive shell session"),
+            # service-level blocks — both single-token and subcommand forms
+            CommandRule(DENY, ["configure"],        reason="configure is not permitted"),
+            CommandRule(DENY, ["configure", ".*"],  reason="configure is not permitted"),
+            CommandRule(DENY, ["sts"],              reason="sts is not permitted except get-caller-identity"),
+            CommandRule(DENY, ["sts",       ".*"],  reason="sts is not permitted except get-caller-identity"),
             *help_strict_rules,
         ],
         flag_rules=shared.flag_rules,
     )
+
     read = CommandFilter(
         DENY,
         default_reason="command is not recognized as read-only — use aws_write instead",
@@ -128,20 +149,22 @@ def build_filters() -> tuple[CommandFilter, CommandFilter]:
         command_strict_rules=[
             CommandRule(ALLOW, ["sts", "get-caller-identity"]),
             *write.command_strict_rules,
-            CommandRule(ALLOW, [".*", "list-.*"]),
+            CommandRule(ALLOW, [".*", "check-.*"]),
             CommandRule(ALLOW, [".*", "describe-.*"]),
+            CommandRule(ALLOW, [".*", "filter-.*"]),
             CommandRule(ALLOW, [".*", "get-.*"]),
-            CommandRule(ALLOW, [".*", "show-.*"]),
             CommandRule(ALLOW, [".*", "head-.*"]),
+            CommandRule(ALLOW, [".*", "list-.*"]),
             CommandRule(ALLOW, [".*", "lookup-.*"]),
             CommandRule(ALLOW, [".*", "scan-.*"]),
             CommandRule(ALLOW, [".*", "search-.*"]),
-            CommandRule(ALLOW, [".*", "check-.*"]),
-            CommandRule(ALLOW, [".*", "filter-.*"]),
+            CommandRule(ALLOW, [".*", "show-.*"]),
             CommandRule(ALLOW, [".*", "wait", ".*"]),
             CommandRule(ALLOW, ["dynamodb", "query"]),
             CommandRule(ALLOW, ["dynamodb", "scan"]),
+            CommandRule(ALLOW, ["s3",       "ls"]),
         ],
         flag_rules=shared.flag_rules,
     )
+
     return read, write
