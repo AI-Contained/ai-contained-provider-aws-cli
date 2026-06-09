@@ -66,6 +66,15 @@ class PiperProcess:
             relay_stdin=asyncio.create_task(self._relay_stdin(process)) if self._upstream is not None else None,
         )
 
+    async def __aenter__(self) -> "PiperProcess":
+        await self.start()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        assert self._started is not None
+        if self._started.process.returncode is None:
+            await self.stop()
+
     @property
     def stdout(self) -> asyncio.StreamReader:
         """Relay pipe — readable by the next PiperProcess via upstream=."""
