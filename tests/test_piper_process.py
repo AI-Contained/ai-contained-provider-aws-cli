@@ -129,7 +129,7 @@ def describe_PiperProcess():
                 result = await upstream.wait()
             assert_that(result).is_equal_to(expected)
 
-    def describe_stop():
+    def describe_context_manager():
         async def it_terminates_the_process(env) -> None:
             async with PiperProcess(["sleep", "999"], env=env) as proc:
                 pass
@@ -140,8 +140,3 @@ def describe_PiperProcess():
                 async with PiperProcess(["cat"], env=env, upstream=upstream) as downstream:
                     pass
             assert_that(upstream.result.exit_code).is_not_equal_to(0)
-
-        async def it_is_safe_with_no_upstream(env) -> None:
-            async with PiperProcess(["sleep", "999"], env=env) as proc:
-                pass
-            assert_that(proc.result.exit_code).is_not_equal_to(0)
