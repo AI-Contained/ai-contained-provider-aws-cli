@@ -94,6 +94,7 @@ def describe_PiperProcess():
             proc = PiperProcess(py("print('hello', end='')"), env=env)
             assert_that(await proc.start()).is_none()
             assert_that(proc.result).is_instance_of(PiperResult)
+            await proc.wait()
 
         async def it_matches_wait_after_completion(env) -> None:
             proc = PiperProcess(py("print('hello', end='')"), env=env)
@@ -106,6 +107,7 @@ def describe_PiperProcess():
             proc = PiperProcess(py("print('hello', end='')"), env=env)
             assert_that(await proc.start()).is_none()
             assert_that(proc.stdout).is_instance_of(asyncio.StreamReader)
+            await proc.wait()
 
         async def it_relays_output_to_downstream_stdin(env) -> None:
             expected = PiperResult(exit_code=0, stdout="hello", stderr="", is_truncated=False)
