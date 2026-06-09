@@ -45,7 +45,6 @@ class PiperProcess:
         self._upstream = upstream
         self._max_buffer = max_buffer
         self._stdout_buffer = bytearray()
-        self._is_truncated = False
         self._stdout_pipe = asyncio.StreamReader()
         self._result = PiperResult(exit_code=0, stdout="", stderr="", is_truncated=False)
         self._started: _Started | None = None
@@ -91,7 +90,6 @@ class PiperProcess:
         await self._started.drain()
         self._result.exit_code = await self._started.process.wait()
         self._result.stdout = self._stdout_buffer.decode(errors="replace")
-        self._result.is_truncated = self._is_truncated
         return self._result
 
     async def stop(self) -> None:
@@ -103,7 +101,6 @@ class PiperProcess:
         await self._started.drain()
         self._result.exit_code = await self._started.process.wait()
         self._result.stdout = self._stdout_buffer.decode(errors="replace")
-        self._result.is_truncated = self._is_truncated
 
     async def _relay_stdout(self, process: asyncio.subprocess.Process) -> None:
         # phase 1: fill buffer and feed pipe simultaneously
@@ -116,11 +113,11 @@ class PiperProcess:
             self._stdout_buffer.extend(chunk[:space])
             self._stdout_pipe.feed_data(chunk)
             if len(chunk) > space:
-                self._is_truncated = True
+                self._result.is_truncated = True
                 break
         # phase 2: buffer full — feed pipe only
         while chunk := await process.stdout.read(4096):  # type: ignore[union-attr]
-            self._is_truncated = True
+            self._result.is_truncated = True
             self._stdout_pipe.feed_data(chunk)
         self._stdout_pipe.feed_eof()
 
