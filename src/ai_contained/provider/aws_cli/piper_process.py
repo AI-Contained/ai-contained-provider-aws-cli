@@ -1,11 +1,11 @@
 """Subprocess wrapper with stdout relay, buffering, and upstream chaining."""
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TypedDict
 
 
-@dataclass
-class PiperResult:
+class PiperResponse(TypedDict):
     exit_code: int
     stdout: str
     stderr: str
@@ -13,7 +13,24 @@ class PiperResult:
 
 
 @dataclass
-class _Started:
+class _Config:
+    args: list[str]
+    env: dict[str, str]
+    max_buffer: int
+    upstream: "PiperProcess | None" = None
+
+
+@dataclass
+class _Output:
+    stdout: bytearray = field(default_factory=bytearray)
+    stderr: bytearray = field(default_factory=bytearray)
+    is_truncated: bool = False
+    exit_code: int = 0
+    pipe: asyncio.StreamReader = field(default_factory=asyncio.StreamReader)
+
+
+@dataclass
+class _Command:
     process: asyncio.subprocess.Process
     relay_stdout: asyncio.Task[None]
     read_stderr: asyncio.Task[None]
@@ -30,7 +47,8 @@ class PiperProcess:
     """Runs a subprocess, buffers stdout up to max_buffer, and relays it downstream.
 
     Chain processes via upstream=: the upstream's stdout pipe becomes this
-    process's stdin. Call wait() on the terminal process to collect results.
+    process's stdin. Use as an async context manager; call wait() inside to
+    collect results, or exit without wait() to kill the process.
     """
 
     def __init__(
@@ -40,94 +58,87 @@ class PiperProcess:
         upstream: "PiperProcess | None" = None,
         max_buffer: int = 200_000,
     ) -> None:
-        self._args = args
-        self._env = env
-        self._upstream = upstream
-        self._max_buffer = max_buffer
-        self._stdout_buffer = bytearray()
-        self._stdout_pipe = asyncio.StreamReader()
-        self._result = PiperResult(exit_code=0, stdout="", stderr="", is_truncated=False)
-        self._started: _Started | None = None
-
-    async def start(self) -> None:
-        """Spawn the subprocess and begin relaying stdout."""
-        process = await asyncio.create_subprocess_exec(
-            *self._args,
-            env=self._env,
-            stdin=asyncio.subprocess.PIPE if self._upstream is not None else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        self._started = _Started(
-            process=process,
-            relay_stdout=asyncio.create_task(self._relay_stdout(process)),
-            read_stderr=asyncio.create_task(self._read_stderr(process)),
-            relay_stdin=asyncio.create_task(self._relay_stdin(process)) if self._upstream is not None else None,
-        )
+        self._config = _Config(args=args, env=env, max_buffer=max_buffer, upstream=upstream)
+        self._output = _Output()
+        self._command: _Command | None = None
 
     async def __aenter__(self) -> "PiperProcess":
         await self.start()
         return self
 
     async def __aexit__(self, *_: object) -> None:
-        assert self._started is not None
-        if self._started.process.returncode is None:
+        assert self._command is not None
+        if self._command.process.returncode is None:
             await self.stop()
+
+    async def start(self) -> None:
+        """Spawn the subprocess and begin relaying stdout."""
+        process = await asyncio.create_subprocess_exec(
+            *self._config.args,
+            env=self._config.env,
+            stdin=asyncio.subprocess.PIPE if self._config.upstream is not None else None,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        self._command = _Command(
+            process=process,
+            relay_stdout=asyncio.create_task(self._relay_stdout(process)),
+            read_stderr=asyncio.create_task(self._read_stderr(process)),
+            relay_stdin=asyncio.create_task(self._relay_stdin(process)) if self._config.upstream is not None else None,
+        )
 
     @property
     def stdout(self) -> asyncio.StreamReader:
         """Relay pipe — readable by the next PiperProcess via upstream=."""
-        return self._stdout_pipe
+        return self._output.pipe
 
-    @property
-    def result(self) -> PiperResult:
-        """Current state of the owned result — may be incomplete until wait()."""
-        return self._result
-
-    async def wait(self) -> PiperResult:
-        """Await process completion and return the final PiperResult."""
-        assert self._started is not None, "call start() before wait()"
-        await self._started.drain()
-        self._result.exit_code = await self._started.process.wait()
-        self._result.stdout = self._stdout_buffer.decode(errors="replace")
-        return self._result
+    async def wait(self) -> PiperResponse:
+        """Await process completion and return a PiperResponse."""
+        assert self._command is not None, "call start() before wait()"
+        await self._command.drain()
+        self._output.exit_code = await self._command.process.wait()
+        return PiperResponse(
+            exit_code=self._output.exit_code,
+            stdout=self._output.stdout.decode(errors="replace"),
+            stderr=self._output.stderr.decode(errors="replace"),
+            is_truncated=self._output.is_truncated,
+        )
 
     async def stop(self) -> None:
         """Kill this process, propagate upstream, and block until all are dead."""
-        assert self._started is not None, "call start() before stop()"
-        self._started.process.kill()
-        if self._upstream is not None:
-            await self._upstream.stop()
-        await self._started.drain()
-        self._result.exit_code = await self._started.process.wait()
-        self._result.stdout = self._stdout_buffer.decode(errors="replace")
+        assert self._command is not None, "call start() before stop()"
+        self._command.process.kill()
+        if self._config.upstream is not None:
+            await self._config.upstream.stop()
+        await self._command.drain()
+        self._output.exit_code = await self._command.process.wait()
 
     async def _relay_stdout(self, process: asyncio.subprocess.Process) -> None:
         # phase 1: fill buffer and feed pipe simultaneously
-        while len(self._stdout_buffer) < self._max_buffer:
+        while len(self._output.stdout) < self._config.max_buffer:
             chunk = await process.stdout.read(4096)  # type: ignore[union-attr]
             if not chunk:
-                self._stdout_pipe.feed_eof()
+                self._output.pipe.feed_eof()
                 return
-            space = self._max_buffer - len(self._stdout_buffer)
-            self._stdout_buffer.extend(chunk[:space])
-            self._stdout_pipe.feed_data(chunk)
+            space = self._config.max_buffer - len(self._output.stdout)
+            self._output.stdout.extend(chunk[:space])
+            self._output.pipe.feed_data(chunk)
             if len(chunk) > space:
-                self._result.is_truncated = True
+                self._output.is_truncated = True
                 break
         # phase 2: buffer full — feed pipe only
         while chunk := await process.stdout.read(4096):  # type: ignore[union-attr]
-            self._result.is_truncated = True
-            self._stdout_pipe.feed_data(chunk)
-        self._stdout_pipe.feed_eof()
+            self._output.is_truncated = True
+            self._output.pipe.feed_data(chunk)
+        self._output.pipe.feed_eof()
 
     async def _read_stderr(self, process: asyncio.subprocess.Process) -> None:
-        self._result.stderr = (await process.stderr.read()).decode(errors="replace")  # type: ignore[union-attr]
+        self._output.stderr.extend(await process.stderr.read())  # type: ignore[union-attr]
 
     async def _relay_stdin(self, process: asyncio.subprocess.Process) -> None:
-        assert self._upstream is not None
+        assert self._config.upstream is not None
         assert process.stdin is not None
-        while chunk := await self._upstream.stdout.read(4096):
+        while chunk := await self._config.upstream.stdout.read(4096):
             process.stdin.write(chunk)
             await process.stdin.drain()
         process.stdin.close()
