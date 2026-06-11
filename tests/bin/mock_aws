@@ -1,0 +1,4 @@
+#!/bin/sh
+printf '%s' "${MOCK_AWS_STDOUT:-}"
+printf '%s' "${MOCK_AWS_STDERR:-}" >&2
+exit "${MOCK_AWS_EXIT_CODE:-0}"
