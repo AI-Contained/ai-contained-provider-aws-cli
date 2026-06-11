@@ -1,5 +1,0 @@
-#!/bin/sh
-cat > /dev/null
-printf '%s' "${MOCK_JQ_STDOUT:-}"
-printf '%s' "${MOCK_JQ_STDERR:-}" >&2
-exit "${MOCK_JQ_EXIT_CODE:-0}"

@@ -1,0 +1,9 @@
+#!/bin/sh
+cat > /dev/null
+# Write env to a file if requested — used by tests to verify credential isolation
+if [ -n "${MOCK_JQ_ENV_DUMP:-}" ]; then
+    env > "${MOCK_JQ_ENV_DUMP}"
+fi
+printf '%s' "${MOCK_JQ_STDOUT:-}"
+printf '%s' "${MOCK_JQ_STDERR:-}" >&2
+exit "${MOCK_JQ_EXIT_CODE:-0}"

@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -129,6 +130,24 @@ def describe_AwsCliTool():
             assert_that(json.loads(result.content[0].text)).is_equal_to(
                 {_ACCOUNT: {"exit_status": "0", "stdout": '{"Buckets": []}', "stderr": "parse error"}}
             )
+
+        async def it_does_not_expose_aws_credentials_to_jq(run_setup) -> None:
+            client, mock = run_setup
+            mock.env["MOCK_AWS_STDOUT"] = '{"Buckets": []}'
+            mock.env["AWS_ACCESS_KEY_ID"] = "SECRET_KEY"
+            mock.env["AWS_SECRET_ACCESS_KEY"] = "SECRET_VALUE"
+            with tempfile.NamedTemporaryFile(mode="r", suffix=".env", delete=False) as f:
+                env_dump = f.name
+            mock.env["MOCK_JQ_ENV_DUMP"] = env_dump
+            mock.elicitor.accept()
+            await client.call_tool(
+                "aws_read",
+                {"account": _ACCOUNT, "command": ["s3api", "list-buckets"], "jq_filter": "."},
+                raise_on_error=False,
+            )
+            jq_env = Path(env_dump).read_text()
+            assert_that(jq_env).does_not_contain("SECRET_KEY")
+            assert_that(jq_env).does_not_contain("SECRET_VALUE")
 
         async def it_surfaces_aws_errors(run_setup) -> None:
             client, mock = run_setup
