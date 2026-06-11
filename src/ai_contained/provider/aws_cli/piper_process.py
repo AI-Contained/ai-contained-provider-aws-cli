@@ -26,12 +26,12 @@ class _Output:
     stderr: bytearray = field(default_factory=bytearray)
     is_truncated: bool = False
     exit_code: int = 0
-    pipe: asyncio.StreamReader = field(default_factory=asyncio.StreamReader)
 
 
 @dataclass
 class _Command:
     process: asyncio.subprocess.Process
+    pipe: asyncio.StreamReader
     relay_stdout: asyncio.Task[None]
     read_stderr: asyncio.Task[None]
     relay_stdin: asyncio.Task[None] | None
@@ -82,6 +82,7 @@ class PiperProcess:
         )
         self._command = _Command(
             process=process,
+            pipe=asyncio.StreamReader(),
             relay_stdout=asyncio.create_task(self._relay_stdout(process)),
             read_stderr=asyncio.create_task(self._read_stderr(process)),
             relay_stdin=asyncio.create_task(self._relay_stdin(process)) if self._config.upstream is not None else None,
@@ -90,7 +91,8 @@ class PiperProcess:
     @property
     def stdout(self) -> asyncio.StreamReader:
         """Relay pipe — readable by the next PiperProcess via upstream=."""
-        return self._output.pipe
+        assert self._command is not None, "call start() before accessing stdout"
+        return self._command.pipe
 
     async def wait(self) -> PiperResponse:
         """Await process completion and return a PiperResponse."""
@@ -114,26 +116,27 @@ class PiperProcess:
         self._output.exit_code = await self._command.process.wait()
 
     async def _relay_stdout(self, process: asyncio.subprocess.Process) -> None:
+        assert self._command is not None
         # phase 1: fill buffer and feed pipe simultaneously
         while len(self._output.stdout) < self._config.max_buffer:
-            chunk = await process.stdout.read(4096)  # type: ignore[union-attr]
+            chunk = await process.stdout.read(4096)
             if not chunk:
-                self._output.pipe.feed_eof()
+                self._command.pipe.feed_eof()
                 return
             space = self._config.max_buffer - len(self._output.stdout)
             self._output.stdout.extend(chunk[:space])
-            self._output.pipe.feed_data(chunk)
+            self._command.pipe.feed_data(chunk)
             if len(chunk) > space:
                 self._output.is_truncated = True
                 break
         # phase 2: buffer full — feed pipe only
-        while chunk := await process.stdout.read(4096):  # type: ignore[union-attr]
+        while chunk := await process.stdout.read(4096):
             self._output.is_truncated = True
-            self._output.pipe.feed_data(chunk)
-        self._output.pipe.feed_eof()
+            self._command.pipe.feed_data(chunk)
+        self._command.pipe.feed_eof()
 
     async def _read_stderr(self, process: asyncio.subprocess.Process) -> None:
-        self._output.stderr.extend(await process.stderr.read())  # type: ignore[union-attr]
+        self._output.stderr.extend(await process.stderr.read())
 
     async def _relay_stdin(self, process: asyncio.subprocess.Process) -> None:
         assert self._config.upstream is not None
