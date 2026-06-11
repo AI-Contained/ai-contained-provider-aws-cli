@@ -78,6 +78,9 @@ def describe_AwsCliTool():
                 "aws_read", {"account": _ACCOUNT, "command": ["ec2", "create-instance"]}, raise_on_error=False
             )
             assert_that(result.is_error).is_true()
+            assert_that(result.content[0].text).is_equal_to(
+                "'ec2 create-instance': command is not recognized as read-only — use aws_write instead"
+            )
 
         async def it_rejects_blocked_flags(run_setup) -> None:
             client, mock = run_setup
@@ -87,6 +90,9 @@ def describe_AwsCliTool():
                 raise_on_error=False,
             )
             assert_that(result.is_error).is_true()
+            assert_that(result.content[0].text).is_equal_to(
+                "'--endpoint-url=evil.com': --endpoint-url is not permitted"
+            )
 
         async def it_requires_user_confirmation(run_setup) -> None:
             client, mock = run_setup
@@ -95,6 +101,23 @@ def describe_AwsCliTool():
                 "aws_read", {"account": _ACCOUNT, "command": ["s3api", "list-buckets"]}, raise_on_error=False
             )
             assert_that(result.is_error).is_true()
+            assert_that(result.content[0].text).is_equal_to("Command declined: aws s3api list-buckets")
+
+        async def it_includes_summary_in_elicitation_message(run_setup) -> None:
+            client, mock = run_setup
+            mock.env["MOCK_AWS_STDOUT"] = "{}"
+            mock.elicitor.accept(
+                expect_message=(
+                    "I will run the following command: aws s3api list-buckets (using tool: aws_read)\n"
+                    "Purpose: check bucket inventory"
+                )
+            )
+            result = await client.call_tool(
+                "aws_read",
+                {"account": _ACCOUNT, "command": ["s3api", "list-buckets"], "summary": "check bucket inventory"},
+                raise_on_error=False,
+            )
+            assert_that(result.is_error).is_false()
 
         async def it_returns_raw_aws_output(run_setup) -> None:
             client, mock = run_setup
@@ -211,6 +234,38 @@ def describe_AwsCliTool():
             auth_read: AwsAuthTool
 
         @pytest.fixture
+        async def no_trust_setup():
+            reset_trust_config()
+            elicitor = Elicitor()
+            read_filter, _ = build_filters()
+            tool = AwsCliTool(Role.READ_ONLY, read_filter)
+            mcp = FastMCP("test")
+            await register(mcp, _aws_read=tool)
+            async with Client(transport=mcp, elicitation_handler=elicitor) as client:
+                yield client, elicitor
+            reset_trust_config()
+            assert not elicitor._queue, f"{len(elicitor._queue)} elicitation step(s) were never triggered"
+
+        async def it_raises_when_trust_config_is_not_initialized(no_trust_setup) -> None:
+            client, elicitor = no_trust_setup
+            elicitor.accept()
+            result = await client.call_tool(
+                "aws_read", {"account": _ACCOUNT, "command": ["s3api", "list-buckets"]}, raise_on_error=False
+            )
+            assert_that(result.is_error).is_true()
+            assert_that(result.content[0].text).is_equal_to("aws trust source not configured")
+
+        async def it_raises_when_aws_trust_client_is_not_configured(no_trust_setup) -> None:
+            client, elicitor = no_trust_setup
+            await init_trust_config("aws=", factory=lambda url: httpx.AsyncClient())
+            elicitor.accept()
+            result = await client.call_tool(
+                "aws_read", {"account": _ACCOUNT, "command": ["s3api", "list-buckets"]}, raise_on_error=False
+            )
+            assert_that(result.is_error).is_true()
+            assert_that(result.content[0].text).is_equal_to("aws trust source not configured")
+
+        @pytest.fixture
         async def integration_setup(monkeypatch):
             tests_bin = str(Path(__file__).parent / "bin")
             monkeypatch.setenv("PATH", f"{tests_bin}:{os.environ['PATH']}")
@@ -283,3 +338,16 @@ def describe_AwsCliTool():
             assert_that(json.loads(result.content[0].text)).is_equal_to(
                 {_ACCOUNT: {"exit_status": "0", "stdout": "[]", "stderr": ""}}
             )
+
+        async def it_raises_tool_error_on_http_error_from_trust_client(integration_setup) -> None:
+            client, mock = integration_setup
+            # no auth_read.authorize() → trust server returns 403
+            mock.elicitor.accept()
+            result = await client.call_tool(
+                "aws_read", {"account": _ACCOUNT, "command": ["s3api", "list-buckets"]}, raise_on_error=False
+            )
+            assert_that(result.is_error).is_true()
+            assert_that(json.loads(result.content[0].text)).is_equal_to({
+                "code": "NOT_AUTHORIZED",
+                "detail": f"Call aws_auth_read('{_ACCOUNT}') to authenticate, then retry",
+            })
