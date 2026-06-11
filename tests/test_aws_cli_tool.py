@@ -10,6 +10,7 @@ from fastmcp import FastMCP
 from fastmcp.client import Client
 
 from ai_contained.core.mcp.testing import Elicitor, WrapCallToolResult
+from conftest import tool_client
 from ai_contained.provider.aws_cli import register
 from ai_contained.provider.aws_cli.aws_cli_tool import AwsCliTool
 from ai_contained.provider.aws_cli.command_filter import build_filters
@@ -68,8 +69,8 @@ def describe_AwsCliTool():
         mcp = FastMCP("test")
         await register(mcp, _aws_read=tool)
         async with Client(transport=mcp, elicitation_handler=mock.elicitor) as client:
-            async def aws_read(**kwargs) -> WrapCallToolResult:
-                return WrapCallToolResult(**vars(await client.call_tool("aws_read", kwargs, raise_on_error=False)))
+            @tool_client(client)
+            async def aws_read(): pass
             yield aws_read, mock
         assert not mock.elicitor._queue, f"{len(mock.elicitor._queue)} elicitation step(s) were never triggered"
 
@@ -216,8 +217,8 @@ def describe_AwsCliTool():
             mcp = FastMCP("test")
             await register(mcp, _aws_read=tool)
             async with Client(transport=mcp, elicitation_handler=elicitor) as client:
-                async def aws_read(**kwargs) -> WrapCallToolResult:
-                    return WrapCallToolResult(**vars(await client.call_tool("aws_read", kwargs, raise_on_error=False)))
+                @tool_client(client)
+                async def aws_read(): pass
                 yield aws_read, elicitor
             reset_trust_config()
             assert not elicitor._queue, f"{len(elicitor._queue)} elicitation step(s) were never triggered"
@@ -270,8 +271,8 @@ def describe_AwsCliTool():
 
             mock = IntegrationMock(elicitor=Elicitor(), credentials_manager=credentials_manager, auth_read=auth_read)
             async with Client(transport=mcp, elicitation_handler=mock.elicitor) as client:
-                async def aws_read(**kwargs) -> WrapCallToolResult:
-                    return WrapCallToolResult(**vars(await client.call_tool("aws_read", kwargs, raise_on_error=False)))
+                @tool_client(client)
+                async def aws_read(): pass
                 try:
                     yield aws_read, mock
                 finally:
