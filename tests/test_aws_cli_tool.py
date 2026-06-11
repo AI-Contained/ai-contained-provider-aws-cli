@@ -159,7 +159,7 @@ def describe_AwsCliTool():
             )
             assert_that(result.is_error).is_false()
             assert_that(json.loads(result.content[0].text)).is_equal_to(
-                {_ACCOUNT: {"exit_status": "0", "stdout": '{"Buckets": []}', "stderr": "parse error"}}
+                {_ACCOUNT: {"exit_status": "1", "stdout": '{"Buckets": []}', "stderr": "parse error"}}
             )
 
         async def it_does_not_expose_aws_credentials_to_jq(run_setup) -> None:

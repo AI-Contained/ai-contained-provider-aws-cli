@@ -116,7 +116,7 @@ class AwsCliTool:
                         stderr=aws_response["stderr"],
                     )
                 return AwsCliResponse(
-                    exit_status=str(aws_response["exit_code"]),
+                    exit_status=str(jq_response["exit_code"]),
                     stdout=aws_response["stdout"],
                     stderr=jq_response["stderr"],
                 )
