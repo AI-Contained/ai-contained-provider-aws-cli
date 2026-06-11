@@ -34,6 +34,7 @@ class AwsCliTool:
         ctx: Context,
         account: str,
         command: list[str],
+        flags: list[str] = [],
         jq_filter: str | None = None,
         summary: str | None = None,
     ) -> dict[str, AwsCliResponse]:
