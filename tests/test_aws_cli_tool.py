@@ -4,6 +4,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import httpx
 import pytest
 from assertpy import assert_that
 from fastmcp import FastMCP
@@ -13,7 +14,14 @@ from ai_contained.core.mcp.testing import Elicitor
 from ai_contained.provider.aws_cli import register
 from ai_contained.provider.aws_cli.aws_cli_tool import AwsCliTool
 from ai_contained.provider.aws_cli.command_filter import build_filters
+from ai_contained.provider.aws_secrets import register as aws_secrets_register
+from ai_contained.provider.aws_secrets.accounts import Accounts
+from ai_contained.provider.aws_secrets.aws_auth_tool import AwsAuthTool
+from ai_contained.provider.aws_secrets.credentials_manager import Credential
 from ai_contained.provider.aws_secrets.types import Role
+from ai_contained.trust import server as trust_server
+from ai_contained.trust.client.trust_config import init_trust_config, reset_trust_config
+from ai_contained.trust.server.trust_store import get_trust_store
 
 def describe_register():
     async def it_exposes_read_and_write_tools() -> None:
@@ -160,4 +168,118 @@ def describe_AwsCliTool():
             assert_that(result.is_error).is_false()
             assert_that(json.loads(result.content[0].text)).is_equal_to(
                 {_ACCOUNT: {"exit_status": "255", "stdout": "", "stderr": "command not found"}}
+            )
+
+    def describe_run_integration():
+        class MockCredentialsManager:
+            async def validate(self, role, account):
+                raise NotImplementedError
+
+            async def login(self, ctx, role, account):
+                raise NotImplementedError
+
+            async def fetch_credentials(self, role, account):
+                raise NotImplementedError
+
+        def _return_responses(*values):
+            it = iter(values)
+
+            async def _fn(*args, **kwargs):
+                val = next(it)
+                if isinstance(val, Exception):
+                    raise val
+                return val
+
+            return _fn
+
+        _CREDENTIAL = Credential(
+            env={"AWS_ACCESS_KEY_ID": "AKID", "AWS_SECRET_ACCESS_KEY": "SECRET", "AWS_SESSION_TOKEN": "TOKEN"},
+            expiration=None,
+        )
+
+        _ACCOUNTS_JSON = f"""{{
+            login: {{ type: "sso" }},
+            accounts: {{ "{_ACCOUNT}": {{
+                name: "Test", read_profile: "test-read", write_profile: "test-write"
+            }} }},
+        }}"""
+
+        @dataclass
+        class IntegrationMock:
+            elicitor: Elicitor
+            credentials_manager: MockCredentialsManager
+            auth_read: AwsAuthTool
+
+        @pytest.fixture
+        async def integration_setup(monkeypatch):
+            tests_bin = str(Path(__file__).parent / "bin")
+            monkeypatch.setenv("PATH", f"{tests_bin}:{os.environ['PATH']}")
+            monkeypatch.setenv("MOCK_AWS_STDOUT", "")
+            monkeypatch.setenv("MOCK_AWS_STDERR", "")
+            monkeypatch.setenv("MOCK_AWS_EXIT_CODE", "0")
+            monkeypatch.setenv("MOCK_JQ_STDOUT", "")
+            monkeypatch.setenv("MOCK_JQ_STDERR", "")
+            monkeypatch.setenv("MOCK_JQ_EXIT_CODE", "0")
+
+            accounts = Accounts(_ACCOUNTS_JSON)
+            credentials_manager = MockCredentialsManager()
+            auth_read = AwsAuthTool(Role.READ_ONLY, accounts, credentials_manager)
+            auth_write = AwsAuthTool(Role.READ_WRITE, accounts, credentials_manager)
+
+            get_trust_store().reset()
+            trust_server.get_trust_config().reset("127.0.0.1")
+            mcp = FastMCP("test")
+            await trust_server.register(mcp)
+            await aws_secrets_register(mcp, _accounts=accounts, _auth_read=auth_read, _auth_write=auth_write)
+
+            credential_transport = httpx.ASGITransport(app=mcp.http_app(), client=("127.0.0.1", 50000))
+            await init_trust_config(
+                "aws=http://ignored/aws/secret",
+                factory=lambda url: httpx.AsyncClient(transport=credential_transport, base_url="http://ignored"),
+            )
+
+            read_filter, _ = build_filters()
+            await register(mcp, _aws_read=AwsCliTool(Role.READ_ONLY, read_filter))
+
+            mock = IntegrationMock(elicitor=Elicitor(), credentials_manager=credentials_manager, auth_read=auth_read)
+            async with Client(transport=mcp, elicitation_handler=mock.elicitor) as client:
+                try:
+                    yield client, mock
+                finally:
+                    reset_trust_config()
+            assert not mock.elicitor._queue, f"{len(mock.elicitor._queue)} elicitation step(s) were never triggered"
+
+        async def it_returns_aws_output_fetching_credentials_via_trust_client(integration_setup, monkeypatch) -> None:
+            client, mock = integration_setup
+            monkeypatch.setenv("MOCK_AWS_STDOUT", '{"Buckets": []}')
+            mock.auth_read.authorize(_ACCOUNT)
+            mock.credentials_manager.fetch_credentials = _return_responses(_CREDENTIAL)
+            mock.elicitor.accept()
+
+            result = await client.call_tool(
+                "aws_read", {"account": _ACCOUNT, "command": ["s3api", "list-buckets"]}, raise_on_error=False
+            )
+
+            assert_that(result.is_error).is_false()
+            assert_that(json.loads(result.content[0].text)).is_equal_to(
+                {_ACCOUNT: {"exit_status": "0", "stdout": '{"Buckets": []}', "stderr": ""}}
+            )
+
+        async def it_filters_jq_output_fetching_credentials_via_trust_client(integration_setup, monkeypatch) -> None:
+            client, mock = integration_setup
+            monkeypatch.setenv("MOCK_AWS_STDOUT", '{"Buckets": []}')
+            monkeypatch.setenv("MOCK_JQ_STDOUT", "[]")
+            mock.auth_read.authorize(_ACCOUNT)
+            mock.credentials_manager.fetch_credentials = _return_responses(_CREDENTIAL)
+            mock.elicitor.accept()
+
+            result = await client.call_tool(
+                "aws_read",
+                {"account": _ACCOUNT, "command": ["s3api", "list-buckets"], "jq_filter": ".Buckets"},
+                raise_on_error=False,
+            )
+
+            assert_that(result.is_error).is_false()
+            assert_that(json.loads(result.content[0].text)).is_equal_to(
+                {_ACCOUNT: {"exit_status": "0", "stdout": "[]", "stderr": ""}}
             )

@@ -13,6 +13,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "ai-contained-provider-aws-secrets @ file:///ai_contained/ai-contained-provider-aws-secrets",
+    "ai-contained-provider-trust-server-daemon @ https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/heads/main.zip#subdirectory=packages/daemon",
+    "httpx>=0.27",
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
     "pytest-describe>=3.1",
