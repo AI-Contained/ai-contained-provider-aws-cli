@@ -53,24 +53,24 @@ class AwsCliTool:
         if rejection:
             raise ToolError(rejection)
 
+        account_name, base_env, aws_env = await self._build_envs(account)
+
         tool_name = "aws_read" if self._role == Role.READ_ONLY else "aws_write"
         cmd_str = "aws " + " ".join(command + flags)
         if jq_filter:
             cmd_str += f" | jq '{jq_filter}'"
-        msg = f"I will run the following command: {cmd_str} (using tool: {tool_name})"
+        msg = f"I will run the following command on {account_name}({account}): {cmd_str} (using tool: {tool_name})"
         if summary:
             msg += f"\nPurpose: {summary}"
 
         result = await ctx.elicit(message=msg, response_type=None)
         if result.action != "accept":
             raise ToolError(f"Command declined: {cmd_str}")
-
-        base_env, aws_env = await self._build_envs(account)
         response = await self._execute(base_env, aws_env, command, flags, jq_filter)
         return {account: response}
 
-    async def _build_envs(self, account: str) -> tuple[dict[str, str], dict[str, str]]:
-        """Return (base_env, aws_env) where base_env has no AWS_* vars and aws_env adds credentials."""
+    async def _build_envs(self, account: str) -> tuple[str, dict[str, str], dict[str, str]]:
+        """Return (account_name, base_env, aws_env) where base_env has no AWS_* vars and aws_env adds credentials."""
         base_env = {k: v for k, v in os.environ.items() if not k.startswith("AWS_")}
 
         trust_config = get_trust_config()
@@ -86,7 +86,7 @@ class AwsCliTool:
             raise ToolError(e.response.content.decode()) from e
 
         aws_env = {**base_env, **credentials[account]["env"], "AWS_PAGER": ""}
-        return base_env, aws_env
+        return credentials[account]["name"], base_env, aws_env
 
     async def _execute(
         self,

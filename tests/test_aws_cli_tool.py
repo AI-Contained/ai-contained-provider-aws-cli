@@ -75,6 +75,7 @@ def describe_AwsCliTool():
     @pytest.fixture
     async def setup(monkeypatch):
         credential = Credential(
+            name="Test",
             env={"AWS_ACCESS_KEY_ID": "AKID", "AWS_SECRET_ACCESS_KEY": "SECRET", "AWS_SESSION_TOKEN": "TOKEN"},
             expiration=None,
         )
@@ -172,7 +173,7 @@ def describe_AwsCliTool():
             aws_read, mock = setup
             mock.elicitor.accept(
                 expect_message=(
-                    "I will run the following command: aws s3api list-buckets (using tool: aws_read)\n"
+                    f"I will run the following command on Test({_ACCOUNT}): aws s3api list-buckets (using tool: aws_read)\n"
                     "Purpose: check bucket inventory"
                 )
             )
@@ -237,7 +238,6 @@ def describe_AwsCliTool():
 
         async def it_raises_when_trust_config_is_not_initialized(no_trust_setup) -> None:
             aws_read, elicitor = no_trust_setup
-            elicitor.accept()
             result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"])
             assert_that(result.is_error).is_true()
             assert_that(result.content[0].text).is_equal_to("aws trust source not configured")
@@ -245,14 +245,12 @@ def describe_AwsCliTool():
         async def it_raises_when_aws_trust_client_is_not_configured(no_trust_setup) -> None:
             aws_read, elicitor = no_trust_setup
             await init_trust_config("aws=", factory=lambda url: httpx.AsyncClient())
-            elicitor.accept()
             result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"])
             assert_that(result.is_error).is_true()
             assert_that(result.content[0].text).is_equal_to("aws trust source not configured")
 
         async def it_raises_tool_error_on_http_error_from_trust_client(setup) -> None:
             aws_read, mock = setup
-            mock.elicitor.accept()
             result = await aws_read(account=_UNAUTHORIZED_ACCOUNT, command=["s3api", "list-buckets"])
             assert_that(result.is_error).is_true()
             assert_that(result.json()).is_equal_to({
