@@ -26,11 +26,9 @@ class AwsCliTool:
         self,
         role: Role,
         command_filter: CommandFilter,
-        _env: dict[str, str] | None = None,
     ) -> None:
         self._role = role
         self._command_filter = command_filter
-        self._env = _env
 
     @mcp.tool()
     async def run(
@@ -73,10 +71,6 @@ class AwsCliTool:
 
     async def _build_envs(self, account: str) -> tuple[dict[str, str], dict[str, str]]:
         """Return (base_env, aws_env) where base_env has no AWS_* vars and aws_env adds credentials."""
-        if self._env is not None:
-            base_env = {k: v for k, v in self._env.items() if not k.startswith("AWS_")}
-            return base_env, self._env
-
         base_env = {k: v for k, v in os.environ.items() if not k.startswith("AWS_")}
 
         trust_config = get_trust_config()
@@ -91,7 +85,7 @@ class AwsCliTool:
         except httpx.HTTPStatusError as e:
             raise ToolError(e.response.content.decode()) from e
 
-        aws_env = {**base_env, **credentials[account]["env"]}
+        aws_env = {**base_env, **credentials[account]["env"], "AWS_PAGER": ""}
         return base_env, aws_env
 
     async def _execute(
