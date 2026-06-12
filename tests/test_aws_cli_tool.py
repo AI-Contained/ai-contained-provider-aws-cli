@@ -43,6 +43,7 @@ def describe_register():
 
 def describe_AwsCliTool():
     _ACCOUNT = "123456789012"
+    _UNAUTHORIZED_ACCOUNT = "999999999999"
 
     class MockCredentialsManager:
         async def validate(self, role, account):
@@ -79,9 +80,14 @@ def describe_AwsCliTool():
         )
         accounts_json = f"""{{
             login: {{ type: "sso" }},
-            accounts: {{ "{_ACCOUNT}": {{
-                name: "Test", read_profile: "test-read", write_profile: "test-write"
-            }} }},
+            accounts: {{
+                "{_ACCOUNT}": {{
+                    name: "Test", read_profile: "test-read", write_profile: "test-write"
+                }},
+                "{_UNAUTHORIZED_ACCOUNT}": {{
+                    name: "Unauthorized", read_profile: "test-read", write_profile: "test-write"
+                }},
+            }},
         }}"""
         tests_bin = str(Path(__file__).parent / "bin")
         monkeypatch.setenv("PATH", f"{tests_bin}:{os.environ['PATH']}")
@@ -247,10 +253,9 @@ def describe_AwsCliTool():
         async def it_raises_tool_error_on_http_error_from_trust_client(setup) -> None:
             aws_read, mock = setup
             mock.elicitor.accept()
-            invalid_account="000000000000"
-            result = await aws_read(account=invalid_account, command=["s3api", "list-buckets"])
+            result = await aws_read(account=_UNAUTHORIZED_ACCOUNT, command=["s3api", "list-buckets"])
             assert_that(result.is_error).is_true()
             assert_that(result.json()).is_equal_to({
-                "code": "UNKNOWN_ACCOUNT",
-                "detail": f"Account '{invalid_account}' is not configured",
+                "code": "NOT_AUTHORIZED",
+                "detail": f"Call aws_auth_read('{_UNAUTHORIZED_ACCOUNT}') to authenticate, then retry",
             })
