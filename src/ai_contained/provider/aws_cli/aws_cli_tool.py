@@ -15,6 +15,8 @@ from ai_contained.trust.client.trust_config import get_trust_config
 
 
 class AwsCliResponse(TypedDict):
+    """JSON-serializable result of a single AWS CLI invocation."""
+
     exit_status: str
     stdout: str
     stderr: str
@@ -28,6 +30,7 @@ class AwsCliTool:
         role: Role,
         command_filter: CommandFilter,
     ) -> None:
+        """Initialize with role and command filter."""
         self._role = role
         self._command_filter = command_filter
 

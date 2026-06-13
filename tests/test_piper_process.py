@@ -140,7 +140,12 @@ def describe_PiperProcess():
             assert_that(proc._output.exit_code).is_equal_to(-9)
 
         async def it_propagates_stop_to_upstream(env) -> None:
-            async with PiperProcess(["sleep", "999"], env=env) as upstream:
-                async with PiperProcess(["cat"], env=env, upstream=upstream) as downstream:
-                    pass
+            # Start upstream manually — no context manager — so its __aexit__ never runs.
+            # Only downstream's __aexit__ can kill upstream (via stop() propagation).
+            upstream = PiperProcess(["sleep", "999"], env=env)
+            await upstream.start()
+
+            async with PiperProcess(["cat"], env=env, upstream=upstream) as _:
+                pass  # exiting here calls downstream.stop() → upstream.stop()
+
             assert_that(upstream._output.exit_code).is_equal_to(-9)

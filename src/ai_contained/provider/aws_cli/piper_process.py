@@ -6,6 +6,8 @@ from typing import TypedDict
 
 
 class PiperResponse(TypedDict):
+    """Raw output and exit code from a PiperProcess run."""
+
     exit_code: int
     stdout: str
     stderr: str
@@ -58,15 +60,18 @@ class PiperProcess:
         upstream: "PiperProcess | None" = None,
         max_buffer: int = 200_000,
     ) -> None:
+        """Initialize with subprocess args and configuration."""
         self._config = _Config(args=args, env=env, max_buffer=max_buffer, upstream=upstream)
         self._output = _Output()
         self._command: _Command | None = None
 
     async def __aenter__(self) -> "PiperProcess":
+        """Start the subprocess."""
         await self.start()
         return self
 
     async def __aexit__(self, *_: object) -> None:
+        """Stop the subprocess if still running."""
         assert self._command is not None
         if self._command.process.returncode is None:
             await self.stop()

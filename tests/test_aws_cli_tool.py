@@ -6,10 +6,11 @@ from pathlib import Path
 import httpx
 import pytest
 from assertpy import assert_that
+from conftest import tool_client
 from fastmcp import FastMCP
 from fastmcp.client import Client
 
-from ai_contained.core.mcp.testing import Elicitor, WrapCallToolResult
+from ai_contained.core.mcp.testing import Elicitor
 from ai_contained.provider.aws_cli import register
 from ai_contained.provider.aws_cli.aws_cli_tool import AwsCliTool
 from ai_contained.provider.aws_cli.command_filter import build_filters
@@ -21,7 +22,6 @@ from ai_contained.provider.aws_secrets.types import Role
 from ai_contained.trust import server as trust_server
 from ai_contained.trust.client.trust_config import init_trust_config, reset_trust_config
 from ai_contained.trust.server.trust_store import get_trust_store
-from conftest import tool_client
 
 
 def describe_register():
@@ -181,7 +181,8 @@ def describe_AwsCliTool():
             aws_read, mock = setup
             mock.elicitor.accept(
                 expect_message=(
-                    f"I will run the following command on Test({_ACCOUNT}): aws s3api list-buckets (using tool: aws_read)\n"
+                    f"I will run the following command on Test({_ACCOUNT}): "
+                    f"aws s3api list-buckets (using tool: aws_read)\n"
                     "Purpose: check bucket inventory"
                 )
             )

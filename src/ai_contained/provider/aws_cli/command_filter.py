@@ -22,6 +22,7 @@ class CommandRule:
     _compiled: list[re.Pattern[str]] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        """Compile pattern strings to regex objects."""
         self._compiled = [re.compile(p) for p in self.patterns]
 
     def check(self, tokens: list[str]) -> CommandPolicy | None:
@@ -48,6 +49,7 @@ class CommandFilter:
         command_strict_rules: list[CommandRule] = [],
         flag_rules: list[CommandRule] = [],
     ) -> None:
+        """Initialize with default policy and rule chains."""
         for rule in command_rules:
             if rule.policy == CommandPolicy.ALLOW:
                 raise NotImplementedError("command_rules do not support ALLOW policy — token scanning is deny-only")

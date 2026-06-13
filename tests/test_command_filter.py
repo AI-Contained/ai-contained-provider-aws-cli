@@ -290,7 +290,8 @@ def describe_build_filters():
                 # ssm — all subcommands allowed in write
                 Case(ALLOW, ["ssm", "get-parameter"]),
                 Case(ALLOW, ["ssm", "send-command"]),
-                # sts — single token bypasses the 2-pattern ["sts", ".*"] deny rule; no write exemption for get-caller-identity
+                # sts — single token bypasses the 2-pattern ["sts", ".*"] deny rule;
+                # no write exemption for get-caller-identity
                 Case(DENY, ["sts"]),
                 Case(DENY, ["sts", "get-caller-identity"]),
             ]
