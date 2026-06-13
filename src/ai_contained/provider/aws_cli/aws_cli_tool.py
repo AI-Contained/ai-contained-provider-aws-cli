@@ -13,6 +13,7 @@ from ai_contained.provider.aws_cli.piper_process import PiperProcess
 from ai_contained.provider.aws_secrets.types import Role
 from ai_contained.trust.client.trust_config import get_trust_config
 
+
 class AwsCliResponse(TypedDict):
     exit_status: str
     stdout: str

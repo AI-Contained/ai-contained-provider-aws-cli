@@ -123,8 +123,11 @@ def describe_AwsCliTool():
         mock.auth_read.authorize(_ACCOUNT)
         mock.credentials_manager.fetch_credentials = _return_responses(credential)
         async with Client(transport=mcp, elicitation_handler=mock.elicitor) as client:
+
             @tool_client(client)
-            async def aws_read(): pass
+            async def aws_read():
+                pass
+
             try:
                 yield aws_read, mock
             finally:
@@ -139,8 +142,11 @@ def describe_AwsCliTool():
         mcp = FastMCP("test")
         await register(mcp, _aws_read=AwsCliTool(Role.READ_ONLY, read_filter))
         async with Client(transport=mcp, elicitation_handler=elicitor) as client:
+
             @tool_client(client)
-            async def aws_read(): pass
+            async def aws_read():
+                pass
+
             yield aws_read, elicitor
         reset_trust_config()
         assert not elicitor._queue, f"{len(elicitor._queue)} elicitation step(s) were never triggered"
@@ -156,7 +162,9 @@ def describe_AwsCliTool():
 
         async def it_rejects_blocked_flags(setup) -> None:
             aws_read, mock = setup
-            result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"], flags=["--endpoint-url=evil.com"])
+            result = await aws_read(
+                account=_ACCOUNT, command=["s3api", "list-buckets"], flags=["--endpoint-url=evil.com"]
+            )
             assert_that(result.is_error).is_true()
             assert_that(result.content[0].text).is_equal_to(
                 "'--endpoint-url=evil.com': --endpoint-url is not permitted"
@@ -177,7 +185,9 @@ def describe_AwsCliTool():
                     "Purpose: check bucket inventory"
                 )
             )
-            result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"], summary="check bucket inventory")
+            result = await aws_read(
+                account=_ACCOUNT, command=["s3api", "list-buckets"], summary="check bucket inventory"
+            )
             assert_that(result.is_error).is_false()
 
         async def it_returns_raw_aws_output(setup, monkeypatch) -> None:
@@ -197,9 +207,7 @@ def describe_AwsCliTool():
             mock.elicitor.accept()
             result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=".Buckets")
             assert_that(result.is_error).is_false()
-            assert_that(result.json()).is_equal_to(
-                {_ACCOUNT: {"exit_status": "0", "stdout": "[]", "stderr": ""}}
-            )
+            assert_that(result.json()).is_equal_to({_ACCOUNT: {"exit_status": "0", "stdout": "[]", "stderr": ""}})
 
         async def it_falls_back_to_aws_output_when_jq_fails(setup, monkeypatch) -> None:
             aws_read, mock = setup
@@ -253,7 +261,9 @@ def describe_AwsCliTool():
             aws_read, mock = setup
             result = await aws_read(account=_UNAUTHORIZED_ACCOUNT, command=["s3api", "list-buckets"])
             assert_that(result.is_error).is_true()
-            assert_that(result.json()).is_equal_to({
-                "code": "NOT_AUTHORIZED",
-                "detail": f"Call aws_auth_read('{_UNAUTHORIZED_ACCOUNT}') to authenticate, then retry",
-            })
+            assert_that(result.json()).is_equal_to(
+                {
+                    "code": "NOT_AUTHORIZED",
+                    "detail": f"Call aws_auth_read('{_UNAUTHORIZED_ACCOUNT}') to authenticate, then retry",
+                }
+            )

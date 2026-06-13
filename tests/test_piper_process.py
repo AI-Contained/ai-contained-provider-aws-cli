@@ -12,7 +12,6 @@ def py(*statements: str) -> list[str]:
     return ["python3", "-c", "; ".join(statements)]
 
 
-
 def describe_PiperProcess():
     @pytest.fixture
     def env() -> dict[str, str]:
@@ -55,21 +54,27 @@ def describe_PiperProcess():
         async def it_is_not_truncated_when_output_is_within_max_buffer(env) -> None:
             max_buffer = 100
             expected = PiperResponse(exit_code=0, stdout="x" * (max_buffer - 1), stderr="", is_truncated=False)
-            async with PiperProcess(py(f"print('{expected['stdout']}', end='')"), env=env, max_buffer=max_buffer) as proc:
+            async with PiperProcess(
+                py(f"print('{expected['stdout']}', end='')"), env=env, max_buffer=max_buffer
+            ) as proc:
                 result = await proc.wait()
             assert_that(result).is_equal_to(expected)
 
         async def it_is_not_truncated_when_output_is_exactly_max_buffer(env) -> None:
             max_buffer = 100
             expected = PiperResponse(exit_code=0, stdout="x" * max_buffer, stderr="", is_truncated=False)
-            async with PiperProcess(py(f"print('{expected['stdout']}', end='')"), env=env, max_buffer=max_buffer) as proc:
+            async with PiperProcess(
+                py(f"print('{expected['stdout']}', end='')"), env=env, max_buffer=max_buffer
+            ) as proc:
                 result = await proc.wait()
             assert_that(result).is_equal_to(expected)
 
         async def it_truncates_stdout_when_output_exceeds_max_buffer(env) -> None:
             max_buffer = 100
             expected = PiperResponse(exit_code=0, stdout="x" * max_buffer, stderr="", is_truncated=True)
-            async with PiperProcess(py(f"print('x' * {max_buffer + 1}, end='')"), env=env, max_buffer=max_buffer) as proc:
+            async with PiperProcess(
+                py(f"print('x' * {max_buffer + 1}, end='')"), env=env, max_buffer=max_buffer
+            ) as proc:
                 result = await proc.wait()
             assert_that(result).is_equal_to(expected)
 
@@ -100,7 +105,9 @@ def describe_PiperProcess():
         async def it_caps_buffer_at_max_buffer(env) -> None:
             max_buffer = 100
             expected = PiperResponse(exit_code=0, stdout="x" * max_buffer, stderr="", is_truncated=True)
-            async with PiperProcess(py(f"print('x' * {max_buffer + 1}, end='')"), env=env, max_buffer=max_buffer) as upstream:
+            async with PiperProcess(
+                py(f"print('x' * {max_buffer + 1}, end='')"), env=env, max_buffer=max_buffer
+            ) as upstream:
                 async with PiperProcess(["cat"], env=env, upstream=upstream) as downstream:
                     await downstream.wait()
                 result = await upstream.wait()
@@ -109,12 +116,18 @@ def describe_PiperProcess():
         async def it_relays_full_output_to_downstream_even_when_buffer_is_exceeded(env) -> None:
             max_buffer = 100
             overflow = 10
-            expected_upstream = PiperResponse(exit_code=0, stdout='x' * max_buffer, stderr="", is_truncated=True)
-            upstream_input = expected_upstream["stdout"] + 'x' * overflow
-            expected_downstream = PiperResponse(exit_code=0, stdout=str(len(upstream_input)), stderr="", is_truncated=False)
+            expected_upstream = PiperResponse(exit_code=0, stdout="x" * max_buffer, stderr="", is_truncated=True)
+            upstream_input = expected_upstream["stdout"] + "x" * overflow
+            expected_downstream = PiperResponse(
+                exit_code=0, stdout=str(len(upstream_input)), stderr="", is_truncated=False
+            )
 
-            async with PiperProcess(py(f"print('{upstream_input}', end='')"), env=env, max_buffer=max_buffer) as upstream:
-                async with PiperProcess(py("import sys", "print(len(sys.stdin.read()), end='')"), env=env, upstream=upstream) as downstream:
+            async with PiperProcess(
+                py(f"print('{upstream_input}', end='')"), env=env, max_buffer=max_buffer
+            ) as upstream:
+                async with PiperProcess(
+                    py("import sys", "print(len(sys.stdin.read()), end='')"), env=env, upstream=upstream
+                ) as downstream:
                     downstream_result = await downstream.wait()
                 upstream_result = await upstream.wait()
             assert_that(upstream_result).is_equal_to(expected_upstream)

@@ -177,102 +177,90 @@ def describe_build_filters():
 
     COMMON_CASES = [
         # flags are not permitted in the service-name position
-        Case(DENY,  ["--debug",      "ec2"]),
-
+        Case(DENY, ["--debug", "ec2"]),
         # codeartifact — get-authorization-token leaks registry credentials
-        Case(DENY,  ["codeartifact", "get-authorization-token"]),
-
+        Case(DENY, ["codeartifact", "get-authorization-token"]),
         # cognito-identity — get-credentials-for-identity returns AWS credentials for a Cognito identity pool
-        Case(DENY,  ["cognito-identity", "get-credentials-for-identity"]),
-
+        Case(DENY, ["cognito-identity", "get-credentials-for-identity"]),
         # configure — blocked entirely; subcommands irrelevant
-        Case(DENY,  ["configure",    "list"]),
-
+        Case(DENY, ["configure", "list"]),
         # ec2 — flag-level denials applied regardless of command
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--body=file://input.json"]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--body=fileb://input.json"]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--endpoint-url=https://evil.com"]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--output=text"]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--output="]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--output"]),
-        Case(DENY,  ["ec2", "describe-instances"], flags=["--template-file=foo.yaml"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--body=file://input.json"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--body=fileb://input.json"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--endpoint-url=https://evil.com"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--output=text"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--output="]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--output"]),
+        Case(DENY, ["ec2", "describe-instances"], flags=["--template-file=foo.yaml"]),
         # help is always allowed
         Case(ALLOW, ["help"]),
-        Case(ALLOW, ["ec2",   "help"]),
-        Case(ALLOW, ["ec2",   "describe-instances", "help"]),
+        Case(ALLOW, ["ec2", "help"]),
+        Case(ALLOW, ["ec2", "describe-instances", "help"]),
         # ...except when you trying to subvert the system
         # Case(DENY,  ["help"], flags=["--debug=true"),  # TODO:  Is this possible?
         Case(ALLOW, ["help"], flags=["--region=plant-earth-1"]),
-        Case(DENY,  ["help"], flags=["--ca-bundle=evilcorp.bundle"]),
-        Case(DENY,  ["help"], flags=["--cli-auto-prompt"]), # Our tool does not handle prompting from stdin
-        Case(DENY,  ["help"], flags=["--debug"]), # debugging might leak sensitive information
-        Case(DENY,  ["help", "--debug"]),
-        Case(DENY,  ["help"], flags=["--endpoint-url=https://evil.com"]),
-        Case(DENY,  ["help"], flags=["--no-sign-request"]),
-        Case(DENY,  ["help"], flags=["--no-verify-ssl"]),
-        Case(DENY,  ["help"], flags=["--profile=SystemRoot"]),
-
+        Case(DENY, ["help"], flags=["--ca-bundle=evilcorp.bundle"]),
+        Case(DENY, ["help"], flags=["--cli-auto-prompt"]),  # Our tool does not handle prompting from stdin
+        Case(DENY, ["help"], flags=["--debug"]),  # debugging might leak sensitive information
+        Case(DENY, ["help", "--debug"]),
+        Case(DENY, ["help"], flags=["--endpoint-url=https://evil.com"]),
+        Case(DENY, ["help"], flags=["--no-sign-request"]),
+        Case(DENY, ["help"], flags=["--no-verify-ssl"]),
+        Case(DENY, ["help"], flags=["--profile=SystemRoot"]),
         # ecr — both credential retrieval commands blocked (v1 and v2 APIs)
-        Case(DENY,  ["ecr",  "get-authorization-token"]),
-        Case(DENY,  ["ecr",  "get-login-password"]),
-
+        Case(DENY, ["ecr", "get-authorization-token"]),
+        Case(DENY, ["ecr", "get-login-password"]),
         # ecs — execute-command opens an interactive shell inside a running container
-        Case(DENY,  ["ecs",  "execute-command"]),
-
+        Case(DENY, ["ecs", "execute-command"]),
         # eks — get-token returns a short-lived cluster auth token
-        Case(DENY,  ["eks",  "get-token"]),
-
+        Case(DENY, ["eks", "get-token"]),
         # sso — get-role-credentials returns temporary AWS credentials for an SSO role assignment
-        Case(DENY,  ["sso",  "get-role-credentials"]),
-
+        Case(DENY, ["sso", "get-role-credentials"]),
         # ssm — start-session opens an interactive shell session into an EC2 instance
-        Case(DENY,  ["ssm",  "start-session"]),
-
+        Case(DENY, ["ssm", "start-session"]),
         # sts — session/role credential commands blocked; get-caller-identity handled per filter
-        Case(DENY,  ["sts",  "assume-role"]),
-        Case(DENY,  ["sts",  "get-session-token"]),
+        Case(DENY, ["sts", "assume-role"]),
+        Case(DENY, ["sts", "get-session-token"]),
     ]
 
-    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + [
-        # cloudformation
-        Case(ALLOW, ["cloudformation", "list-stacks"]),
-
-        # dynamodb — query/scan explicitly allowed; write commands blocked
-        Case(ALLOW, ["dynamodb", "query"]),
-        Case(ALLOW, ["dynamodb", "scan"]),
-
-        # ec2 — read-only verbs allowed; mutating verbs blocked
-        Case(ALLOW, ["ec2", "describe-instances"]),
-        Case(DENY,  ["ec2", "run-instances"]),
-        Case(DENY,  ["ec2", "terminate-instances"]),
-        Case(ALLOW, ["ec2", "wait", "instance-running"]),
-
-        # iam
-        Case(DENY,  ["iam", "create-user"]),
-        Case(ALLOW, ["iam", "get-user"]),
-
-        # s3
-        Case(ALLOW, ["s3", "ls", "s3://my-bucket"]),
-        Case(DENY, ["s3", "ls"], flags=["s3://my-bucket"]),
-
-        # s3api
-        Case(ALLOW, ["s3api", "list-buckets"]),
-        Case(DENY,  ["s3api", "put-object"]),
-
-        # lambda — invoke is a mutating operation; use aws_write instead
-        Case(DENY,  ["lambda", "invoke"]),
-
-        # secretsmanager — get-secret-value returns the actual plaintext secret value
-        Case(DENY,  ["secretsmanager", "get-secret-value"]),
-
-        # ssm — entire service blocked in read; even read-like subcommands can expose sensitive state
-        Case(DENY,  ["ssm", "get-parameter"]),
-        Case(DENY,  ["ssm", "list-commands"]),
-        Case(DENY,  ["ssm", "send-command"]),
-
-        # sts — get-caller-identity is the one allowed sts command in read
-        Case(ALLOW, ["sts", "get-caller-identity"]),
-    ]])
+    @pytest.mark.parametrize(
+        "case",
+        [
+            pytest.param(c, id=c.id)
+            for c in COMMON_CASES
+            + [
+                # cloudformation
+                Case(ALLOW, ["cloudformation", "list-stacks"]),
+                # dynamodb — query/scan explicitly allowed; write commands blocked
+                Case(ALLOW, ["dynamodb", "query"]),
+                Case(ALLOW, ["dynamodb", "scan"]),
+                # ec2 — read-only verbs allowed; mutating verbs blocked
+                Case(ALLOW, ["ec2", "describe-instances"]),
+                Case(DENY, ["ec2", "run-instances"]),
+                Case(DENY, ["ec2", "terminate-instances"]),
+                Case(ALLOW, ["ec2", "wait", "instance-running"]),
+                # iam
+                Case(DENY, ["iam", "create-user"]),
+                Case(ALLOW, ["iam", "get-user"]),
+                # s3
+                Case(ALLOW, ["s3", "ls", "s3://my-bucket"]),
+                Case(DENY, ["s3", "ls"], flags=["s3://my-bucket"]),
+                # s3api
+                Case(ALLOW, ["s3api", "list-buckets"]),
+                Case(DENY, ["s3api", "put-object"]),
+                # lambda — invoke is a mutating operation; use aws_write instead
+                Case(DENY, ["lambda", "invoke"]),
+                # secretsmanager — get-secret-value returns the actual plaintext secret value
+                Case(DENY, ["secretsmanager", "get-secret-value"]),
+                # ssm — entire service blocked in read; even read-like subcommands can expose sensitive state
+                Case(DENY, ["ssm", "get-parameter"]),
+                Case(DENY, ["ssm", "list-commands"]),
+                Case(DENY, ["ssm", "send-command"]),
+                # sts — get-caller-identity is the one allowed sts command in read
+                Case(ALLOW, ["sts", "get-caller-identity"]),
+            ]
+        ],
+    )
     def it_applies_read_policy(read: CommandFilter, case: Case) -> None:
         result = read.rejection_command(case.command) or read.rejection_flags(case.flags)
         if case.policy == ALLOW:
@@ -280,34 +268,34 @@ def describe_build_filters():
         else:
             assert_that(result).is_not_none()
 
-    @pytest.mark.parametrize("case", [pytest.param(c, id=c.id) for c in COMMON_CASES + [
-        # configure — single token bypasses the 2-pattern ["configure", ".*"] deny rule
-        Case(DENY,  ["configure"]),
-
-        # dynamodb — scan is a read-like operation but write defaults to ALLOW
-        Case(ALLOW, ["dynamodb", "scan"]),
-
-        # ec2 — mutating verbs allowed in write
-        Case(ALLOW, ["ec2", "run-instances"]),
-        Case(ALLOW, ["ec2", "terminate-instances"]),
-
-        # iam
-        Case(ALLOW, ["iam", "create-user"]),
-
-        # lambda — invoke is allowed in write
-        Case(ALLOW, ["lambda", "invoke"]),
-
-        # s3api
-        Case(ALLOW, ["s3api", "put-object"]),
-
-        # ssm — all subcommands allowed in write
-        Case(ALLOW, ["ssm", "get-parameter"]),
-        Case(ALLOW, ["ssm", "send-command"]),
-
-        # sts — single token bypasses the 2-pattern ["sts", ".*"] deny rule; no write exemption for get-caller-identity
-        Case(DENY,  ["sts"]),
-        Case(DENY,  ["sts", "get-caller-identity"]),
-    ]])
+    @pytest.mark.parametrize(
+        "case",
+        [
+            pytest.param(c, id=c.id)
+            for c in COMMON_CASES
+            + [
+                # configure — single token bypasses the 2-pattern ["configure", ".*"] deny rule
+                Case(DENY, ["configure"]),
+                # dynamodb — scan is a read-like operation but write defaults to ALLOW
+                Case(ALLOW, ["dynamodb", "scan"]),
+                # ec2 — mutating verbs allowed in write
+                Case(ALLOW, ["ec2", "run-instances"]),
+                Case(ALLOW, ["ec2", "terminate-instances"]),
+                # iam
+                Case(ALLOW, ["iam", "create-user"]),
+                # lambda — invoke is allowed in write
+                Case(ALLOW, ["lambda", "invoke"]),
+                # s3api
+                Case(ALLOW, ["s3api", "put-object"]),
+                # ssm — all subcommands allowed in write
+                Case(ALLOW, ["ssm", "get-parameter"]),
+                Case(ALLOW, ["ssm", "send-command"]),
+                # sts — single token bypasses the 2-pattern ["sts", ".*"] deny rule; no write exemption for get-caller-identity
+                Case(DENY, ["sts"]),
+                Case(DENY, ["sts", "get-caller-identity"]),
+            ]
+        ],
+    )
     def it_applies_write_policy(write: CommandFilter, case: Case) -> None:
         result = write.rejection_command(case.command) or write.rejection_flags(case.flags)
         if case.policy == ALLOW:
