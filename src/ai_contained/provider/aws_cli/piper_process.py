@@ -117,6 +117,7 @@ class PiperProcess:
 
     async def _relay_stdout(self, process: asyncio.subprocess.Process) -> None:
         assert self._command is not None
+        assert process.stdout is not None
         # phase 1: fill buffer and feed pipe simultaneously
         while len(self._output.stdout) < self._config.max_buffer:
             chunk = await process.stdout.read(4096)
@@ -136,6 +137,7 @@ class PiperProcess:
         self._command.pipe.feed_eof()
 
     async def _read_stderr(self, process: asyncio.subprocess.Process) -> None:
+        assert process.stderr is not None
         self._output.stderr.extend(await process.stderr.read())
 
     async def _relay_stdin(self, process: asyncio.subprocess.Process) -> None:
