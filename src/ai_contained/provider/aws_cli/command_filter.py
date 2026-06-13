@@ -104,6 +104,7 @@ def build_filters() -> tuple[CommandFilter, CommandFilter]:
             CommandRule(DENY, ["--cli-auto-prompt(?:=.*)?"], reason="interactive prompting is not permitted"),
             CommandRule(DENY, ["--debug(?:=.*)?"],           reason="debug output may leak credentials"),
             CommandRule(DENY, ["--endpoint-url(?:=.*)?"],    reason="--endpoint-url is not permitted"),
+            CommandRule(DENY, ["--output(?:=.*)?"],          reason="--output is not permitted; json is always used"),
             CommandRule(DENY, ["--no-sign-request"],         reason="unsigned requests are not permitted"),
             CommandRule(DENY, ["--no-verify-ssl"],           reason="disabling TLS verification is not permitted"),
             CommandRule(DENY, ["--profile(?:=.*)?"],         reason="profile switching is not permitted"),

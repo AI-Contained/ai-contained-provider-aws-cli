@@ -192,6 +192,9 @@ def describe_build_filters():
         Case(DENY,  ["ec2", "describe-instances"], flags=["--body=file://input.json"]),
         Case(DENY,  ["ec2", "describe-instances"], flags=["--body=fileb://input.json"]),
         Case(DENY,  ["ec2", "describe-instances"], flags=["--endpoint-url=https://evil.com"]),
+        Case(DENY,  ["ec2", "describe-instances"], flags=["--output=text"]),
+        Case(DENY,  ["ec2", "describe-instances"], flags=["--output="]),
+        Case(DENY,  ["ec2", "describe-instances"], flags=["--output"]),
         Case(DENY,  ["ec2", "describe-instances"], flags=["--template-file=foo.yaml"]),
         # help is always allowed
         Case(ALLOW, ["help"]),
