@@ -4,7 +4,7 @@ from fastmcp import FastMCP
 
 from ai_contained.provider.aws_cli.aws_cli_tool import AwsCliTool
 from ai_contained.provider.aws_cli.command_filter import build_filters
-from ai_contained.provider.aws_secrets.types import Role
+from ai_contained.provider.aws_cli.types import Role
 
 _AWS_READ_DESCRIPTION = """\
 Execute a read-only AWS CLI command on a previously authenticated account.

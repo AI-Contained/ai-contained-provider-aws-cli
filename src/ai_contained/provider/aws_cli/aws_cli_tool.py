@@ -10,7 +10,7 @@ from fastmcp.exceptions import ToolError
 
 from ai_contained.provider.aws_cli.command_filter import CommandFilter
 from ai_contained.provider.aws_cli.piper_process import PiperProcess
-from ai_contained.provider.aws_secrets.types import Role
+from ai_contained.provider.aws_cli.types import Role
 from ai_contained.trust.client.trust_config import get_trust_config
 
 

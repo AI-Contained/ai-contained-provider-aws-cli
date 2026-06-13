@@ -2,4 +2,5 @@
 #  For example:  You're creating a git provider, and you'll need
 #  to include 'git'
 #
-# git
+aws-cli
+jq
