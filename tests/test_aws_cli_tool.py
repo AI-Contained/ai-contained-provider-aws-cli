@@ -181,13 +181,47 @@ def describe_AwsCliTool():
             aws_read, mock = setup
             mock.elicitor.accept(
                 expect_message=(
-                    f"I will run the following command on Test({_ACCOUNT}): "
-                    f"aws s3api list-buckets (using tool: aws_read)\n"
+                    f"I will run on Test({_ACCOUNT}):  (using tool: aws_read)\n"
+                    "\n"
+                    "    aws s3api list-buckets\n"
+                    "\n"
                     "Purpose: check bucket inventory"
                 )
             )
             result = await aws_read(
                 account=_ACCOUNT, command=["s3api", "list-buckets"], summary="check bucket inventory"
+            )
+            assert_that(result.is_error).is_false()
+
+        async def it_shows_short_jq_filter_in_full(setup) -> None:
+            aws_read, mock = setup
+            # 40 chars or fewer — shown verbatim, no truncation
+            short_filter = ".Buckets | length"
+            mock.elicitor.accept(
+                expect_message=(
+                    f"I will run on Test({_ACCOUNT}):  (using tool: aws_read)\n"
+                    "\n"
+                    f"    aws s3api list-buckets | jq '{short_filter}'"
+                )
+            )
+            result = await aws_read(
+                account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=short_filter
+            )
+            assert_that(result.is_error).is_false()
+
+        async def it_truncates_long_jq_filter_to_40_chars(setup) -> None:
+            aws_read, mock = setup
+            # 78 chars — truncated to 37 chars + "..." (40 chars total)
+            long_filter = "{count: (.SecretList | length), names: [.SecretList[].Name], next: .NextToken}"
+            mock.elicitor.accept(
+                expect_message=(
+                    f"I will run on Test({_ACCOUNT}):  (using tool: aws_read)\n"
+                    "\n"
+                    "    aws s3api list-buckets | jq '{count: (.SecretList | length), names...'"
+                )
+            )
+            result = await aws_read(
+                account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=long_filter
             )
             assert_that(result.is_error).is_false()
 

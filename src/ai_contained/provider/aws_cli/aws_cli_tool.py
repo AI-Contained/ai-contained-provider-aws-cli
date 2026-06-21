@@ -62,10 +62,11 @@ class AwsCliTool:
         tool_name = "aws_read" if self._role == Role.READ_ONLY else "aws_write"
         cmd_str = "aws " + " ".join(command + flags)
         if jq_filter:
-            cmd_str += f" | jq '{jq_filter}'"
-        msg = f"I will run the following command on {account_name}({account}): {cmd_str} (using tool: {tool_name})"
+            displayed_jq = jq_filter if len(jq_filter) <= 40 else jq_filter[:37] + "..."
+            cmd_str += f" | jq '{displayed_jq}'"
+        msg = f"I will run on {account_name}({account}):  (using tool: {tool_name})\n\n    {cmd_str}"
         if summary:
-            msg += f"\nPurpose: {summary}"
+            msg += f"\n\nPurpose: {summary}"
 
         result = await ctx.elicit(message=msg, response_type=None)
         if result.action != "accept":
