@@ -1,5 +1,6 @@
 """MCP tool implementation for AWS CLI execution."""
 
+import hashlib
 import os
 from typing import TypedDict
 
@@ -20,6 +21,32 @@ class AwsCliResponse(TypedDict):
     exit_status: str
     stdout: str
     stderr: str
+
+
+class _Color:
+    """ANSI colorizer for elicitation messages. Disabled via COLOR != 'ascii'."""
+
+    @staticmethod
+    def _wrap(ansi: str, text: str) -> str:
+        if os.environ.get("COLOR", "ascii") != "ascii":
+            return text
+        return f"\033[{ansi}m{text}\033[0m"
+
+    @staticmethod
+    def role(name: str) -> str:
+        """Green for aws_read, red for aws_write."""
+        return _Color._wrap("32" if name == "aws_read" else "31", name)
+
+    @staticmethod
+    def id(account: str) -> str:
+        """Dim gray — de-emphasizes the 12-digit account ID next to its human name."""
+        return _Color._wrap("38;5;245", account)
+
+    @staticmethod
+    def name(account_name: str) -> str:
+        """Deterministic per-name hue, hashed into the 6×6×6 color cube (codes 17–231)."""
+        code = (hashlib.blake2b(account_name.encode(), digest_size=1).digest()[0] % 215) + 17
+        return _Color._wrap(f"38;5;{code}", account_name)
 
 
 class AwsCliTool:
@@ -64,7 +91,10 @@ class AwsCliTool:
         if jq_filter:
             displayed_jq = jq_filter if len(jq_filter) <= 40 else jq_filter[:37] + "..."
             cmd_str += f" | jq '{displayed_jq}'"
-        msg = f"I will run on {account_name}({account}):  (using tool: {tool_name})\n\n    {cmd_str}"
+        msg = (
+            f"I will run on {_Color.name(account_name)}({_Color.id(account)}):  "
+            f"(using tool: {_Color.role(tool_name)})\n\n    {cmd_str}"
+        )
         if summary:
             msg += f"\n\nPurpose: {summary}"
 

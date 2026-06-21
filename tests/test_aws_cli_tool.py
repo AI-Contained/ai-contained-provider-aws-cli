@@ -98,6 +98,7 @@ def describe_AwsCliTool():
         monkeypatch.setenv("MOCK_JQ_STDOUT", "")
         monkeypatch.setenv("MOCK_JQ_STDERR", "")
         monkeypatch.setenv("MOCK_JQ_EXIT_CODE", "0")
+        monkeypatch.setenv("COLOR", "off")
 
         accounts = Accounts(accounts_json)
         credentials_manager = MockCredentialsManager()
@@ -204,9 +205,7 @@ def describe_AwsCliTool():
                     f"    aws s3api list-buckets | jq '{short_filter}'"
                 )
             )
-            result = await aws_read(
-                account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=short_filter
-            )
+            result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=short_filter)
             assert_that(result.is_error).is_false()
 
         async def it_truncates_long_jq_filter_to_40_chars(setup) -> None:
@@ -220,9 +219,7 @@ def describe_AwsCliTool():
                     "    aws s3api list-buckets | jq '{count: (.SecretList | length), names...'"
                 )
             )
-            result = await aws_read(
-                account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=long_filter
-            )
+            result = await aws_read(account=_ACCOUNT, command=["s3api", "list-buckets"], jq_filter=long_filter)
             assert_that(result.is_error).is_false()
 
         async def it_returns_raw_aws_output(setup, monkeypatch) -> None:
