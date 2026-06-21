@@ -15,6 +15,7 @@ each command before it runs.
 Parameters
 ----------
   account   12-digit AWS account ID (must have been authenticated with aws_auth_read).
+            Consult ai-contained://aws-secrets/accounts to discover available accounts and their IDs.
   command   AWS CLI subcommand tokens, e.g. ["ec2", "describe-instances"].
   flags     Optional extra flags in --key=value form, e.g. ["--region=eu-west-1"].
             Do NOT include --output; JSON output is always used.
@@ -39,6 +40,7 @@ each command before it runs.
 Parameters
 ----------
   account   12-digit AWS account ID (must have been authenticated with aws_auth_write).
+            Consult ai-contained://aws-secrets/accounts to discover available accounts and their IDs.
   command   AWS CLI subcommand tokens, e.g. ["s3", "cp", "file.txt", "s3://bucket/"].
   flags     Optional extra flags in --key=value form, e.g. ["--region=eu-west-1"].
             Do NOT include --output; JSON output is always used.
