@@ -98,9 +98,11 @@ class AwsCliTool:
         if summary:
             msg += f"\n\nPurpose: {summary}"
 
-        result = await ctx.elicit(message=msg, response_type=None)
-        if result.action != "accept":
-            raise ToolError(f"Command declined: {cmd_str}")
+        auto_approve = self._role == Role.READ_ONLY and os.environ.get("EXPERIMENTAL_APPROVE_ALL_READS")
+        if not auto_approve:
+            result = await ctx.elicit(message=msg, response_type=None)
+            if result.action != "accept":
+                raise ToolError(f"Command declined: {cmd_str}")
         response = await self._execute(base_env, aws_env, command, flags, jq_filter)
         return {account: response}
 

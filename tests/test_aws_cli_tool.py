@@ -99,6 +99,7 @@ def describe_AwsCliTool():
         monkeypatch.setenv("MOCK_JQ_STDERR", "")
         monkeypatch.setenv("MOCK_JQ_EXIT_CODE", "0")
         monkeypatch.setenv("COLOR", "off")
+        monkeypatch.setenv("EXPERIMENTAL_APPROVE_ALL_READS", "")
 
         accounts = Accounts(accounts_json)
         credentials_manager = MockCredentialsManager()
