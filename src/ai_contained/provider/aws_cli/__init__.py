@@ -1,10 +1,11 @@
 """AWS CLI provider for AI-Contained."""
 
-from fastmcp import FastMCP
-
+import ai_contained.provider.trust_client as trust_client
+from ai_contained.core.mcp import ProviderContext
 from ai_contained.provider.aws_cli.aws_cli_tool import AwsCliTool
 from ai_contained.provider.aws_cli.command_filter import build_filters
 from ai_contained.provider.aws_cli.types import Role
+from ai_contained.trust.client import TrustConfig
 
 _AWS_READ_DESCRIPTION = """\
 Execute a read-only AWS CLI command on a previously authenticated account.
@@ -57,16 +58,15 @@ Notes:
 """
 
 
-async def register(
-    mcp: FastMCP,
-    *,
-    _aws_read: AwsCliTool | None = None,
-    _aws_write: AwsCliTool | None = None,
-) -> None:
-    """Register AWS CLI tools with the MCP server."""
-    read_filter, write_filter = build_filters()
-    aws_read = _aws_read or AwsCliTool(Role.READ_ONLY, read_filter)
-    aws_write = _aws_write or AwsCliTool(Role.READ_WRITE, write_filter)
+async def provide(ctx: ProviderContext) -> None:
+    """Register AWS CLI tools with the MCP server; requires trust_client to be loaded first."""
+    trust = await ctx.ensure(trust_client.provide)
+    assert isinstance(trust, TrustConfig)
+    client = trust.get_client("aws")
 
-    mcp.tool(name="aws_read", description=_AWS_READ_DESCRIPTION)(aws_read.run)
-    mcp.tool(name="aws_write", description=_AWS_WRITE_DESCRIPTION)(aws_write.run)
+    read_filter, write_filter = build_filters()
+    aws_read = AwsCliTool(ctx.environ, client, Role.READ_ONLY, read_filter)
+    aws_write = AwsCliTool(ctx.environ, client, Role.READ_WRITE, write_filter)
+
+    ctx.mcp.tool(name="aws_read", description=_AWS_READ_DESCRIPTION)(aws_read.run)
+    ctx.mcp.tool(name="aws_write", description=_AWS_WRITE_DESCRIPTION)(aws_write.run)

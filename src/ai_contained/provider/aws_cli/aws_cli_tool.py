@@ -1,7 +1,6 @@
 """MCP tool implementation for AWS CLI execution."""
 
 import hashlib
-import os
 from typing import TypedDict
 
 import httpx
@@ -9,10 +8,11 @@ from fastmcp import Context
 from fastmcp import tools as mcp
 from fastmcp.exceptions import ToolError
 
+from ai_contained.core.mcp import Environ
 from ai_contained.provider.aws_cli.command_filter import CommandFilter
 from ai_contained.provider.aws_cli.piper_process import PiperProcess
 from ai_contained.provider.aws_cli.types import Role
-from ai_contained.trust.client.trust_config import get_trust_config
+from ai_contained.trust.client import TrustClient
 
 
 class AwsCliResponse(TypedDict):
@@ -26,27 +26,27 @@ class AwsCliResponse(TypedDict):
 class _Color:
     """ANSI colorizer for elicitation messages. Disabled via COLOR != 'ascii'."""
 
-    @staticmethod
-    def _wrap(ansi: str, text: str) -> str:
-        if os.environ.get("COLOR", "ascii") != "ascii":
+    def __init__(self, environ: Environ) -> None:
+        """Read the COLOR toggle once from the given environment."""
+        self._enabled = environ.get("COLOR", "ascii") == "ascii"
+
+    def _wrap(self, ansi: str, text: str) -> str:
+        if not self._enabled:
             return text
         return f"\033[{ansi}m{text}\033[0m"
 
-    @staticmethod
-    def role(name: str) -> str:
+    def role(self, name: str) -> str:
         """Green for aws_read, red for aws_write."""
-        return _Color._wrap("32" if name == "aws_read" else "31", name)
+        return self._wrap("32" if name == "aws_read" else "31", name)
 
-    @staticmethod
-    def id(account: str) -> str:
+    def id(self, account: str) -> str:
         """Dim gray — de-emphasizes the 12-digit account ID next to its human name."""
-        return _Color._wrap("38;5;245", account)
+        return self._wrap("38;5;245", account)
 
-    @staticmethod
-    def name(account_name: str) -> str:
+    def name(self, account_name: str) -> str:
         """Deterministic per-name hue, hashed into the 6×6×6 color cube (codes 17–231)."""
         code = (hashlib.blake2b(account_name.encode(), digest_size=1).digest()[0] % 215) + 17
-        return _Color._wrap(f"38;5;{code}", account_name)
+        return self._wrap(f"38;5;{code}", account_name)
 
 
 class AwsCliTool:
@@ -54,12 +54,18 @@ class AwsCliTool:
 
     def __init__(
         self,
+        environ: Environ,
+        trust: TrustClient | None,
         role: Role,
         command_filter: CommandFilter,
     ) -> None:
-        """Initialize with role and command filter."""
+        """Initialize from the container's launch env with the aws trust client, for the given role."""
         self._role = role
         self._command_filter = command_filter
+        self._trust = trust
+        self._color = _Color(environ)
+        self._approve_all_reads = bool(environ.get("EXPERIMENTAL_APPROVE_ALL_READS"))
+        self._base_env = {k: v for k, v in environ.items() if not k.startswith("AWS_")}
 
     @mcp.tool()
     async def run(
@@ -92,13 +98,13 @@ class AwsCliTool:
             displayed_jq = jq_filter if len(jq_filter) <= 40 else jq_filter[:37] + "..."
             cmd_str += f" | jq '{displayed_jq}'"
         msg = (
-            f"I will run on {_Color.name(account_name)}({_Color.id(account)}):  "
-            f"(using tool: {_Color.role(tool_name)})\n\n    {cmd_str}"
+            f"I will run on {self._color.name(account_name)}({self._color.id(account)}):  "
+            f"(using tool: {self._color.role(tool_name)})\n\n    {cmd_str}"
         )
         if summary:
             msg += f"\n\nPurpose: {summary}"
 
-        auto_approve = self._role == Role.READ_ONLY and os.environ.get("EXPERIMENTAL_APPROVE_ALL_READS")
+        auto_approve = self._role == Role.READ_ONLY and self._approve_all_reads
         if not auto_approve:
             result = await ctx.elicit(message=msg, response_type=None)
             if result.action != "accept":
@@ -108,22 +114,16 @@ class AwsCliTool:
 
     async def _build_envs(self, account: str) -> tuple[str, dict[str, str], dict[str, str]]:
         """Return (account_name, base_env, aws_env) where base_env has no AWS_* vars and aws_env adds credentials."""
-        base_env = {k: v for k, v in os.environ.items() if not k.startswith("AWS_")}
-
-        trust_config = get_trust_config()
-        if trust_config is None:
-            raise ToolError("aws trust source not configured")
-        client = trust_config.get_client("aws")
-        if client is None:
+        if self._trust is None:
             raise ToolError("aws trust source not configured")
 
         try:
-            credentials = await client.post({"account_id": account, "role": self._role.value})
+            credentials = await self._trust.post({"account_id": account, "role": self._role.value})
         except httpx.HTTPStatusError as e:
             raise ToolError(e.response.content.decode()) from e
 
-        aws_env = {**base_env, **credentials[account]["env"], "AWS_PAGER": ""}
-        return credentials[account]["name"], base_env, aws_env
+        aws_env = {**self._base_env, **credentials[account]["env"], "AWS_PAGER": ""}
+        return credentials[account]["name"], self._base_env, aws_env
 
     async def _execute(
         self,
