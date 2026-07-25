@@ -1,11 +1,11 @@
 import json
 from collections.abc import AsyncGenerator
 
-import ai_contained.provider.trust_client as trust_client
 import pytest
 from assertpy import assert_that
 from conftest import LocalHarness
 
+import ai_contained.provider.trust_client as trust_client
 from ai_contained.core.mcp import ProviderContext, ProviderNotLoaded
 from ai_contained.core.mcp.harness import ExecResponse, Harness
 from ai_contained.provider import aws_cli, aws_secrets
