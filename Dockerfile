@@ -1,3 +1,3 @@
 FROM scratch
 
-COPY . /opt/ai-contained-provider-template
+COPY . /opt/ai-contained-provider-aws-cli
