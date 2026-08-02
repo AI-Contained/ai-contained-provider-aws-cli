@@ -21,6 +21,7 @@ dependencies = [
 # the current resolve. TODO: move to tags once the branches are released.
 [tool.uv.sources]
 ai-contained-core-mcp = { url = "https://github.com/AI-Contained/ai-contained-base/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/core-mcp" }
+ai-contained-provider-trust-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-client/archive/refs/heads/kill-singletons.zip" }
 ai-contained-provider-trust-server-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/client" }
 ai-contained-provider-trust-server-daemon = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/daemon" }
 
