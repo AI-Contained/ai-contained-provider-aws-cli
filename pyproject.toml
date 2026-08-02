@@ -20,9 +20,9 @@ dependencies = [
 # Fallback sources — only consulted when nothing else already satisfies the name in
 # the current resolve. TODO: move to tags once the branches are released.
 [tool.uv.sources]
-ai-contained-core-mcp = { git = "https://github.com/AI-Contained/ai-contained-base", subdirectory = "packages/core-mcp", branch = "kill-singletons" }
-ai-contained-provider-trust-server-client = { git = "https://github.com/AI-Contained/ai-contained-provider-trust-server", subdirectory = "packages/client", branch = "kill-singletons" }
-ai-contained-provider-trust-server-daemon = { git = "https://github.com/AI-Contained/ai-contained-provider-trust-server", subdirectory = "packages/daemon", branch = "kill-singletons" }
+ai-contained-core-mcp = { url = "https://github.com/AI-Contained/ai-contained-base/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/core-mcp" }
+ai-contained-provider-trust-server-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/client" }
+ai-contained-provider-trust-server-daemon = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/heads/kill-singletons.zip", subdirectory = "packages/daemon" }
 
 [project.optional-dependencies]
 dev = [
