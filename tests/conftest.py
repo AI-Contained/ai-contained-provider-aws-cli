@@ -1,11 +1,22 @@
-from ai_contained.core.mcp.testing import WrapCallToolResult
+from typing import Any
+
+from assertpy import assert_that
+
+from ai_contained.core.mcp.harness import Harness, ToolResult
 
 
-def tool_client(client):
-    def decorator(fn):
-        async def _call(**kwargs) -> WrapCallToolResult:
-            return WrapCallToolResult(**vars(await client.call_tool(fn.__name__, kwargs, raise_on_error=False)))
+class LocalHarness(Harness):
+    """Harness with the aws-cli and aws-secrets tools callable directly."""
 
-        return _call
+    async def aws_auth_read(self, account_id: str) -> Any:
+        """Call the aws_auth_read tool for the account, accepting its elicitation."""
+        self.elicit.accept()
+        async with self.client() as c:
+            result = await c.tool("aws_auth_read")(account_id=account_id)
+            assert_that(result.is_error).is_false()
+            return result.json()
 
-    return decorator
+    async def aws_read(self, **kwargs: Any) -> ToolResult:
+        """Call the aws_read tool; the caller inspects the result."""
+        async with self.client() as c:
+            return await c.tool("aws_read")(**kwargs)
