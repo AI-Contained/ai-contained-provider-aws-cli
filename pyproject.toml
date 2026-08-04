@@ -4,32 +4,32 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-contained-provider-aws-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "AWS CLI provider for AI-Contained"
 requires-python = ">=3.12"
 dependencies = [
     "ai-contained-core-mcp>=0.4.0",
-    "ai-contained-provider-trust-client>=1.2.0",
+    "ai-contained-provider-trust-client>=1.2.1",
     # Direct, not just transitive via trust-client above: this repo's own code imports
     # ai_contained.trust.client (TrustClient/TrustConfig) directly. Also required so the
     # [tool.uv.sources] entry below binds — uv.sources only applies to names that appear
     # as a direct requirement somewhere in this file, not purely-transitive ones.
-    "ai-contained-provider-trust-server-client>=1.1.0",
+    "ai-contained-provider-trust-server-client>=1.1.1",
 ]
 
 # Fallback sources — only consulted when nothing else already satisfies the name in
 # the current resolve.
 [tool.uv.sources]
 ai-contained-core-mcp = { url = "https://github.com/AI-Contained/ai-contained-base/archive/refs/tags/v0.4.0.zip", subdirectory = "packages/core-mcp" }
-ai-contained-provider-trust-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-client/archive/refs/tags/v1.2.0.zip" }
-ai-contained-provider-trust-server-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/tags/v1.1.0.zip", subdirectory = "packages/client" }
-ai-contained-provider-trust-server-daemon = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/tags/v1.1.0.zip", subdirectory = "packages/daemon" }
-ai-contained-provider-aws-secrets = { url = "https://github.com/AI-Contained/ai-contained-provider-aws-secrets/archive/refs/tags/v0.2.0.zip" }
+ai-contained-provider-trust-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-client/archive/refs/tags/v1.2.1.zip" }
+ai-contained-provider-trust-server-client = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/tags/v1.1.1.zip", subdirectory = "packages/client" }
+ai-contained-provider-trust-server-daemon = { url = "https://github.com/AI-Contained/ai-contained-provider-trust-server/archive/refs/tags/v1.1.1.zip", subdirectory = "packages/daemon" }
+ai-contained-provider-aws-secrets = { url = "https://github.com/AI-Contained/ai-contained-provider-aws-secrets/archive/refs/tags/v0.2.1.zip" }
 
 [project.optional-dependencies]
 dev = [
-    "ai-contained-provider-aws-secrets>=0.2.0",
-    "ai-contained-provider-trust-server-daemon>=1.1.0",
+    "ai-contained-provider-aws-secrets>=0.2.1",
+    "ai-contained-provider-trust-server-daemon>=1.1.1",
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
     "pytest-describe>=3.1",
